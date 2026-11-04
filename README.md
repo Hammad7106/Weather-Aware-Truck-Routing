@@ -3,8 +3,9 @@
 A React + Django web app that helps a truck driver pick the **safest route** between two places,
 based on forecast weather along each route, the truck's load weight, and travel time.
 
-> **Status:** Batch 0 of 7 is done (project scaffold, CI, deployable skeleton). Features arrive in
-> later batches; see the [Roadmap](#roadmap).
+> **Status:** Batches 1–2 of 8 are done (scaffold, risk engine). Features arrive in later batches;
+> see the [Roadmap](#roadmap). Every rule the brief leaves open is decided in
+> [ASSUMPTIONS.md](ASSUMPTIONS.md).
 
 ## Features (target)
 
@@ -107,16 +108,13 @@ CI runs the same checks on every push and pull request.
 2. **Frontend on Vercel:** Import the repo and set **Root Directory** to `frontend`. Set
    `VITE_API_BASE_URL` to the Render URL. Then redeploy.
 
-> Render's free tier sleeps after 15 minutes idle, so the first request can take about 50 s. The
-> header badge shows "Connecting to API…" while it wakes up.
+> Render's free tier sleeps after 15 minutes idle, so the first request can take about 50 s## Roadmap
 
-## Roadmap
-
-- [x] **Batch 0:** Scaffold, CI, deployable skeleton
-- [ ] **Batch 1:** Risk engine (thresholds, load rules, route summaries, ranking) + tests
-- [ ] **Batch 2:** Routing, geocoding, checkpoint sampling and ETAs
-- [ ] **Batch 3:** Weather at checkpoint ETAs + `/api/plan` with recommendation
-- [ ] **Batch 4:** Trip form, route options and route lines on the map
-- [ ] **Batch 5:** Risk-coloured segments, checkpoints, popups, legend
-- [ ] **Batch 6:** Corridor weather heatmap + 0–48 h slider
-- [ ] **Batch 7:** Polish, performance, docs, deployment
+- [x] **Batch 1:** Scaffold, CI, deployable skeleton
+- [x] **Batch 2:** Risk engine (thresholds, load rules, checkpoints, ETAs, summaries, ranking) + tests
+- [ ] **Batch 3:** Backend API (routing, weather, `/api/plan`, corridor weather, geocoding)
+- [ ] **Batch 4:** Trip form (autocomplete, map picking, departure and load controls)
+- [ ] **Batch 5:** Route options on the map and the recommendation
+- [ ] **Batch 6:** Risk-coloured segments, checkpoints, popups, risk profile, legend
+- [ ] **Batch 7:** Corridor weather heatmap + 0–48 h slider
+- [ ] **Batch 8:** Polish, performance, docs, deployment
