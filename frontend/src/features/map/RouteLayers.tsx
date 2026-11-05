@@ -6,11 +6,13 @@ import { cn } from '../../lib/cn'
 import { boundsOf, pointAlong } from '../../lib/geo'
 import { formatDuration } from '../../lib/time'
 import { usePlanner } from '../../store/planner'
+import { SelectedRouteLayers } from './SelectedRouteLayers'
 
 /** Invisible wide line used for hover and click hit-testing. */
 export const ROUTE_HIT_LAYER = 'routes-hit'
 
-const SELECTED_COLOR = '#0284c7'
+/** Dark outline so pale risk colours (Low green, Moderate yellow) stand out on the basemap. */
+const SELECTED_CASING = '#0f172a'
 const ALT_COLOR = '#94a3b8'
 const ALT_HOVER_COLOR = '#475569'
 /** Where each route's label sits along it, so labels on shared highways do not overlap. */
@@ -27,6 +29,7 @@ export function RouteLayers({ plan, selectedId }: { plan: TripPlan; selectedId: 
   const { current: map } = useMap()
   const hoveredId = usePlanner((s) => s.hoveredRouteId)
   const beforeId = useFirstLabelLayer()
+  const selectedRoute = plan.routes.find((route) => route.id === selectedId)
 
   const data = useMemo<GeoJSON.FeatureCollection<GeoJSON.LineString>>(
     () => ({
@@ -78,15 +81,7 @@ export function RouteLayers({ plan, selectedId }: { plan: TripPlan; selectedId: 
           beforeId={beforeId}
           filter={isSelected}
           layout={{ 'line-join': 'round', 'line-cap': 'round' }}
-          paint={{ 'line-color': '#ffffff', 'line-width': 11 }}
-        />
-        <Layer
-          id="routes-selected"
-          type="line"
-          beforeId={beforeId}
-          filter={isSelected}
-          layout={{ 'line-join': 'round', 'line-cap': 'round' }}
-          paint={{ 'line-color': SELECTED_COLOR, 'line-width': 6.5 }}
+          paint={{ 'line-color': SELECTED_CASING, 'line-width': 11 }}
         />
         <Layer
           id={ROUTE_HIT_LAYER}
@@ -95,6 +90,7 @@ export function RouteLayers({ plan, selectedId }: { plan: TripPlan; selectedId: 
           paint={{ 'line-color': '#000000', 'line-opacity': 0, 'line-width': 20 }}
         />
       </Source>
+      {selectedRoute && <SelectedRouteLayers route={selectedRoute} beforeId={beforeId} />}
       <RouteLabels plan={plan} selectedId={selectedId} hoveredId={hoveredId} />
     </>
   )

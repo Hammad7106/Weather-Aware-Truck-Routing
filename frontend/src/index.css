@@ -38,3 +38,15 @@ body {
 .map-menu .maplibregl-popup-tip {
   @apply hidden;
 }
+
+/* Checkpoint details popup. */
+.checkpoint-popup {
+  /* Above the route labels, which are DOM markers too. */
+  z-index: 10;
+}
+.checkpoint-popup .maplibregl-popup-content {
+  @apply rounded-xl p-3 shadow-xl;
+}
+.checkpoint-popup .maplibregl-popup-close-button {
+  @apply top-1 right-1.5 text-base text-slate-400 hover:bg-transparent hover:text-slate-700;
+}

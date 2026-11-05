@@ -38,6 +38,10 @@ interface PlannerState {
   hoveredRouteId: string | null
   /** The form collapses to a one-line summary after planning, so results are in view. */
   formOpen: boolean
+  /** Checkpoint index on the selected route under the pointer (map, chart or list). */
+  hoveredCheckpoint: number | null
+  /** Checkpoint index on the selected route whose details are open. */
+  selectedCheckpoint: number | null
 
   setPlace: (role: PlaceRole, place: DraftPlace | null) => void
   swapPlaces: () => void
@@ -51,6 +55,8 @@ interface PlannerState {
   selectRoute: (id: string | null) => void
   hoverRoute: (id: string | null) => void
   setFormOpen: (open: boolean) => void
+  hoverCheckpoint: (index: number | null) => void
+  selectCheckpoint: (index: number | null) => void
 }
 
 function rememberPlaces(recent: Place[], places: Place[]): Place[] {
@@ -75,6 +81,8 @@ export const usePlanner = create<PlannerState>()((set) => ({
   selectedRouteId: null,
   hoveredRouteId: null,
   formOpen: true,
+  hoveredCheckpoint: null,
+  selectedCheckpoint: null,
 
   setPlace: (role, place) => set((s) => ({ draft: { ...s.draft, [role]: place } })),
   swapPlaces: () =>
@@ -99,9 +107,19 @@ export const usePlanner = create<PlannerState>()((set) => ({
         selectedRouteId: null,
         hoveredRouteId: null,
         formOpen: false,
+        hoveredCheckpoint: null,
+        selectedCheckpoint: null,
       }
     }),
-  selectRoute: (selectedRouteId) => set({ selectedRouteId }),
+  // Checkpoint indexes belong to one route, so switching routes clears them.
+  selectRoute: (selectedRouteId) =>
+    set((s) =>
+      s.selectedRouteId === selectedRouteId
+        ? {}
+        : { selectedRouteId, hoveredCheckpoint: null, selectedCheckpoint: null },
+    ),
   hoverRoute: (hoveredRouteId) => set({ hoveredRouteId }),
   setFormOpen: (formOpen) => set({ formOpen }),
+  hoverCheckpoint: (hoveredCheckpoint) => set({ hoveredCheckpoint }),
+  selectCheckpoint: (selectedCheckpoint) => set({ selectedCheckpoint }),
 }))

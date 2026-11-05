@@ -4,6 +4,7 @@ import { cn } from '../../lib/cn'
 import { DEPARTURE_WINDOW, formatDateTime, toLocalInputValue } from '../../lib/time'
 import { usePlanner } from '../../store/planner'
 import { writeTripToUrl } from '../trip/urlState'
+import { RiskRulesButton } from '../rules/RiskRulesDialog'
 import { explainRecommendation } from './recommendation'
 
 const DELAY_OPTIONS_HOURS = [6, 12, 24]
@@ -45,7 +46,8 @@ export function RecommendationCard({ plan }: { plan: TripPlan }) {
         </ol>
       )}
       <p className="mt-2 pl-6 text-[11px] text-slate-500">
-        Ranked by No Travel miles, then Severe, High, average risk and drive time.
+        Ranked by No Travel miles, then Severe, High, average risk and drive time.{' '}
+        <RiskRulesButton className="align-middle" />
       </p>
     </section>
   )

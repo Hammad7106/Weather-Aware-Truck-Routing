@@ -13,6 +13,8 @@ import { useResolvePoint } from '../trip/useResolvePoint'
 import { useCurrentPlan, useSelectedRouteId } from '../plan/useCurrentPlan'
 import { CameraController } from './CameraController'
 import { ROUTE_HIT_LAYER, RouteLayers } from './RouteLayers'
+import { RiskLegend } from './RiskLegend'
+import { CHECKPOINT_LAYER } from './SelectedRouteLayers'
 import './setupMaplibre'
 import { TripMarkers } from './TripMarkers'
 
@@ -21,17 +23,30 @@ interface MenuPoint {
   lon: number
 }
 
+/** The checkpoint or route under the pointer. Checkpoints win, since they sit on routes. */
+function featureUnderPointer(event: MapLayerMouseEvent) {
+  const features = event.features ?? []
+  const checkpoint = features.find((f) => f.layer.id === CHECKPOINT_LAYER)
+  const route = features.find((f) => f.layer.id === ROUTE_HIT_LAYER)
+  return {
+    checkpoint: checkpoint ? (checkpoint.properties.index as number) : null,
+    routeId: route ? (route.properties.id as string) : null,
+  }
+}
+
 /** Full-bleed WebGL map. Data layers are GeoJSON sources, never per-feature DOM markers. */
 export function MapView() {
   const pickTarget = usePlanner((s) => s.pickTarget)
   const setPickTarget = usePlanner((s) => s.setPickTarget)
   const selectRoute = usePlanner((s) => s.selectRoute)
   const hoverRoute = usePlanner((s) => s.hoverRoute)
+  const hoverCheckpoint = usePlanner((s) => s.hoverCheckpoint)
+  const selectCheckpoint = usePlanner((s) => s.selectCheckpoint)
   const resolvePoint = useResolvePoint()
   const plan = useCurrentPlan().data
   const selectedId = useSelectedRouteId(plan)
   const [menu, setMenu] = useState<MenuPoint | null>(null)
-  const [overRoute, setOverRoute] = useState(false)
+  const [overFeature, setOverFeature] = useState(false)
 
   useEffect(() => {
     if (!pickTarget) return
@@ -54,19 +69,24 @@ export function MapView() {
       return
     }
     setMenu(null)
-    const routeId = event.features?.[0]?.properties?.id as string | undefined
-    if (routeId) selectRoute(routeId)
+    const target = featureUnderPointer(event)
+    if (target.checkpoint !== null) selectCheckpoint(target.checkpoint)
+    else if (target.routeId !== null) selectRoute(target.routeId)
   }
 
   function onMouseMove(event: MapLayerMouseEvent) {
-    const routeId = (event.features?.[0]?.properties?.id as string | undefined) ?? null
-    setOverRoute(routeId !== null)
-    if (usePlanner.getState().hoveredRouteId !== routeId) hoverRoute(routeId)
+    const { checkpoint, routeId } = featureUnderPointer(event)
+    setOverFeature(checkpoint !== null || routeId !== null)
+    const state = usePlanner.getState()
+    if (state.hoveredCheckpoint !== checkpoint) hoverCheckpoint(checkpoint)
+    const route = checkpoint === null ? routeId : null
+    if (state.hoveredRouteId !== route) hoverRoute(route)
   }
 
   function onMouseLeave() {
-    setOverRoute(false)
+    setOverFeature(false)
     hoverRoute(null)
+    hoverCheckpoint(null)
   }
 
   function onContextMenu(event: MapLayerMouseEvent) {
@@ -83,8 +103,8 @@ export function MapView() {
         attributionControl={{ compact: true }}
         dragRotate={false}
         pitchWithRotate={false}
-        cursor={pickTarget ? 'crosshair' : overRoute ? 'pointer' : undefined}
-        interactiveLayerIds={plan ? [ROUTE_HIT_LAYER] : undefined}
+        cursor={pickTarget ? 'crosshair' : overFeature ? 'pointer' : undefined}
+        interactiveLayerIds={plan ? [CHECKPOINT_LAYER, ROUTE_HIT_LAYER] : undefined}
         onClick={onClick}
         onMouseMove={plan ? onMouseMove : undefined}
         onMouseLeave={plan ? onMouseLeave : undefined}
@@ -143,9 +163,13 @@ export function MapView() {
         </div>
       )}
 
-      <p className="pointer-events-none absolute bottom-8 left-3 hidden rounded bg-white/80 px-2 py-1 text-[11px] text-slate-500 shadow-sm md:block">
-        Right-click the map to set a start or destination
-      </p>
+      {plan ? (
+        <RiskLegend showNoData={plan.routes.some((route) => route.summary.no_data_miles > 0)} />
+      ) : (
+        <p className="pointer-events-none absolute bottom-8 left-3 hidden rounded bg-white/80 px-2 py-1 text-[11px] text-slate-500 shadow-sm md:block">
+          Right-click the map to set a start or destination
+        </p>
+      )}
     </div>
   )
 }

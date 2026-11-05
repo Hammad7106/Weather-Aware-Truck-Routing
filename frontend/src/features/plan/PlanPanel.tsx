@@ -7,6 +7,7 @@ import { useSubmitTrip } from '../trip/useSubmitTrip'
 import { sameTrip, toTripRequest, validateDraft } from '../trip/validation'
 import { RecommendationCard } from './RecommendationCard'
 import { RouteCard } from './RouteCard'
+import { RouteDetails } from './RouteDetails'
 import { useCurrentPlan, useSelectedRouteId } from './useCurrentPlan'
 
 function useElapsedSeconds(running: boolean): number {
@@ -102,6 +103,7 @@ export function PlanPanel() {
 
   const data = plan.data
   const routes = [...data.routes].sort((a, b) => a.rank - b.rank)
+  const selectedRoute = routes.find((route) => route.id === selectedId)
 
   return (
     <section aria-label="Results" className="space-y-3">
@@ -138,6 +140,11 @@ export function PlanPanel() {
               />
             ))}
           </div>
+          {selectedRoute && (
+            <div className="mt-4">
+              <RouteDetails route={selectedRoute} />
+            </div>
+          )}
           {routes.length < 3 && (
             <p className="mt-2 text-xs text-slate-500">
               The routing service found only {routes.length} distinct{' '}
