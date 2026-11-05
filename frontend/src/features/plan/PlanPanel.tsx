@@ -5,6 +5,7 @@ import { useNow } from '../../lib/useNow'
 import { usePlanner } from '../../store/planner'
 import { useSubmitTrip } from '../trip/useSubmitTrip'
 import { sameTrip, toTripRequest, validateDraft } from '../trip/validation'
+import { BestDeparture } from './BestDeparture'
 import { RecommendationCard } from './RecommendationCard'
 import { RouteCard } from './RouteCard'
 import { RouteDetails } from './RouteDetails'
@@ -122,6 +123,7 @@ export function PlanPanel() {
 
       <div className={formChanged ? 'space-y-3 opacity-60 transition' : 'space-y-3 transition'}>
         <RecommendationCard plan={data} />
+        <BestDeparture plan={data} />
 
         <div>
           <h2 className="mb-2 flex items-baseline justify-between text-xs font-semibold tracking-wide text-slate-500 uppercase">

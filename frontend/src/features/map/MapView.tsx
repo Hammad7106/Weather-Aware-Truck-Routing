@@ -22,6 +22,7 @@ import { CORRIDOR_HIT_LAYER, CorridorHeatmapLayer } from './CorridorHeatmapLayer
 import { CorridorCellTooltip } from './CorridorCellTooltip'
 import { RiskLegend } from './RiskLegend'
 import { TruckMarkers } from './TruckMarkers'
+import { FollowTruckCamera } from './FollowTruckCamera'
 import { CHECKPOINT_LAYER } from './SelectedRouteLayers'
 import './setupMaplibre'
 import { TripMarkers } from './TripMarkers'
@@ -170,6 +171,7 @@ export function MapView() {
         {plan && selectedId && heatmapVisible && (
           <TruckMarkers plan={plan} selectedId={selectedId} />
         )}
+        {selectedRoute && heatmapVisible && <FollowTruckCamera route={selectedRoute} />}
         <TripMarkers />
 
         {menu && (

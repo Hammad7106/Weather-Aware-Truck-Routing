@@ -1,5 +1,7 @@
-import { ArrowRight, CalendarClock, Pencil, Ruler, Weight } from 'lucide-react'
+import { ArrowRight, CalendarClock, Check, Link2, Pencil, Ruler, Weight } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import type { TripRequest } from '../../api/types'
+import { cn } from '../../lib/cn'
 import { formatDateTime, timeZoneName } from '../../lib/time'
 import { usePlanner } from '../../store/planner'
 import { ROLE_STYLE } from './roleStyle'
@@ -24,13 +26,16 @@ export function TripSummary({ trip }: { trip: TripRequest }) {
           <Dot role="destination" />
           <span className="truncate">{trip.destination.label}</span>
         </p>
-        <button
-          type="button"
-          onClick={() => setFormOpen(true)}
-          className="inline-flex shrink-0 items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-100"
-        >
-          <Pencil className="h-3 w-3" aria-hidden /> Edit
-        </button>
+        <div className="flex shrink-0 gap-1">
+          <CopyLinkButton />
+          <button
+            type="button"
+            onClick={() => setFormOpen(true)}
+            className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-100"
+          >
+            <Pencil className="h-3 w-3" aria-hidden /> Edit
+          </button>
+        </div>
       </div>
       <p className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-slate-500">
         <span className="inline-flex items-center gap-1">
@@ -47,6 +52,51 @@ export function TripSummary({ trip }: { trip: TripRequest }) {
         </span>
       </p>
     </section>
+  )
+}
+
+const COPIED_MS = 2000
+
+/** Copies the shareable trip URL (the page URL always describes the planned trip). */
+function CopyLinkButton() {
+  const [copied, setCopied] = useState(false)
+
+  useEffect(() => {
+    if (!copied) return
+    const timer = window.setTimeout(() => setCopied(false), COPIED_MS)
+    return () => window.clearTimeout(timer)
+  }, [copied])
+
+  async function copy() {
+    const url = window.location.href
+    try {
+      await navigator.clipboard.writeText(url)
+      setCopied(true)
+    } catch {
+      // Clipboard can be blocked (permissions, insecure context): let the user copy by hand.
+      window.prompt('Copy this link to share the trip:', url)
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => void copy()}
+      aria-live="polite"
+      className={cn(
+        'inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium shadow-sm transition',
+        copied
+          ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+          : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-100',
+      )}
+    >
+      {copied ? (
+        <Check className="h-3 w-3" aria-hidden />
+      ) : (
+        <Link2 className="h-3 w-3" aria-hidden />
+      )}
+      {copied ? 'Copied' : 'Copy link'}
+    </button>
   )
 }
 

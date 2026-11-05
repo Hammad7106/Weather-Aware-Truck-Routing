@@ -6,6 +6,7 @@ import { cn } from '../../lib/cn'
 import { riskStyle } from '../../lib/risk'
 import { formatClock } from '../../lib/time'
 import { describeWeatherCode } from '../../lib/weather'
+import { useHeatmap } from '../../store/heatmap'
 import { usePlanner } from '../../store/planner'
 import { useTripTimeZone } from '../trip/useTimeZone'
 
@@ -39,6 +40,12 @@ export function CheckpointTimeline({ route }: { route: RouteOption }) {
   useEffect(() => {
     if (selected !== null) rows.current.get(selected)?.scrollIntoView({ block: 'nearest' })
   }, [selected])
+
+  // While following the truck, keep the checkpoint it is passing in view.
+  const driving = useHeatmap((s) => s.driveSeconds !== null)
+  useEffect(() => {
+    if (driving && hovered !== null) rows.current.get(hovered)?.scrollIntoView({ block: 'nearest' })
+  }, [driving, hovered])
 
   return (
     <div>

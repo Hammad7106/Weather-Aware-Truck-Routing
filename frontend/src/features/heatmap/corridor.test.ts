@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { CorridorWeather, LonLat } from '../../api/types'
 import { makeRoute } from '../../test/fixtures'
 import {
+  checkpointAt,
   corridorFeatures,
   corridorPaths,
   corridorStart,
@@ -106,5 +107,34 @@ describe('corridorFeatures', () => {
     expect(feature.id).toBe(0)
     expect(feature.geometry.coordinates).toEqual([-113, 49.7])
     expect(feature.properties).toMatchObject({ r0: 0, r1: 3, w1: 41.5, p1: 0.1, s0: null })
+  })
+})
+
+describe('checkpointAt', () => {
+  const route = makeRoute({
+    checkpoints: [0, 1800, 3600, 7200].map((eta, index) => ({
+      index,
+      mile: index * 25,
+      lat: 0,
+      lon: index,
+      eta: '',
+      eta_offset_s: eta,
+      covers: [0, 0],
+      level: 0,
+      factors: null,
+      drivers: [],
+      load_rule: null,
+      weather: null,
+    })),
+  })
+
+  it.each([
+    [0, 0],
+    [1799, 0],
+    [1800, 1],
+    [5000, 2],
+    [99999, 3],
+  ])('at %i s the truck has passed checkpoint %i', (seconds, index) => {
+    expect(checkpointAt(route, seconds)).toBe(index)
   })
 })

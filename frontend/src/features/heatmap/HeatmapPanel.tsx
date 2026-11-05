@@ -1,13 +1,16 @@
-import { CloudSun, EyeOff, LoaderCircle, Pause, Play, RotateCw } from 'lucide-react'
+import { CloudSun, EyeOff, LoaderCircle, Pause, Play, RotateCw, Square, Truck } from 'lucide-react'
 import { useEffect } from 'react'
 import type { RouteOption, TripPlan } from '../../api/types'
 import { cn } from '../../lib/cn'
-import { formatClock } from '../../lib/time'
+import { RiskBadge } from '../../components/RiskBadge'
+import { formatClock, formatDuration } from '../../lib/time'
 import { MAX_HOUR, useHeatmap, type HeatmapMetric } from '../../store/heatmap'
+import { usePlanner } from '../../store/planner'
 import { useTripTimeZone } from '../trip/useTimeZone'
 import { corridorStart } from './corridor'
 import { METRICS, toWeight } from './metrics'
 import { useCorridorWeather } from './useCorridorWeather'
+import { useDriveAnimation } from './useDriveAnimation'
 
 const PLAY_STEP_MS = 450
 const METRIC_ORDER: HeatmapMetric[] = ['risk', 'wind', 'rain', 'snow']
@@ -27,11 +30,21 @@ function usePlayback() {
 
 /** Forecast slider and controls for the corridor weather heatmap. */
 export function HeatmapPanel({ plan, route }: { plan: TripPlan; route: RouteOption | undefined }) {
-  const { visible, metric, hour, playing, setVisible, setMetric, setHour, setPlaying } =
-    useHeatmap()
+  const {
+    visible,
+    metric,
+    hour,
+    playing,
+    setVisible,
+    setMetric,
+    setHour,
+    setPlaying,
+    setDriveSeconds,
+  } = useHeatmap()
   const corridor = useCorridorWeather(plan, visible)
   const timeZone = useTripTimeZone()
   usePlayback()
+  useDriveAnimation(plan, route)
 
   if (!visible) {
     return (
@@ -140,6 +153,7 @@ export function HeatmapPanel({ plan, route }: { plan: TripPlan; route: RouteOpti
                 value={hour}
                 onChange={(event) => {
                   setPlaying(false)
+                  setDriveSeconds(null)
                   setHour(Number(event.target.value))
                 }}
                 aria-label="Forecast hour"
@@ -161,17 +175,67 @@ export function HeatmapPanel({ plan, route }: { plan: TripPlan; route: RouteOpti
             </div>
           </div>
 
-          {route && (
-            <p className="mt-1 flex items-center gap-1.5 text-[11px] text-slate-500">
-              <span className="h-1.5 w-3 rounded-full bg-blue-300" aria-hidden />
-              {route.name} is on the road during the shaded hours.
-            </p>
-          )}
+          {route && <DriveControls route={route} disabled={!corridor.data} />}
 
           <MetricLegend metric={metric} />
         </>
       )}
     </section>
+  )
+}
+
+/** "Follow the truck": drive the selected route with the heatmap on the truck's clock. */
+function DriveControls({ route, disabled }: { route: RouteOption; disabled: boolean }) {
+  const driveSeconds = useHeatmap((s) => s.driveSeconds)
+  const setDriveSeconds = useHeatmap((s) => s.setDriveSeconds)
+  const passing = usePlanner((s) => s.hoveredCheckpoint)
+  const checkpoint = passing === null ? null : route.checkpoints[passing]
+
+  if (driveSeconds === null) {
+    return (
+      <div className="mt-2 flex items-center gap-2 text-[11px] text-slate-500">
+        <button
+          type="button"
+          onClick={() => setDriveSeconds(0)}
+          disabled={disabled}
+          className="inline-flex shrink-0 items-center gap-1 rounded-full bg-slate-900 px-2.5 py-1 font-medium text-white shadow-sm transition hover:bg-slate-700 disabled:bg-slate-300"
+        >
+          <Truck className="h-3.5 w-3.5" aria-hidden /> Drive {route.name}
+        </button>
+        <span className="flex items-center gap-1.5">
+          <span className="h-1.5 w-3 rounded-full bg-blue-300" aria-hidden />
+          Shaded: hours on the road
+        </span>
+      </div>
+    )
+  }
+
+  return (
+    <div
+      className="mt-2 flex items-center gap-2 rounded-lg bg-slate-900 px-2 py-1.5 text-[11px] text-white"
+      role="status"
+    >
+      <button
+        type="button"
+        onClick={() => setDriveSeconds(null)}
+        aria-label="Stop driving"
+        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/15 hover:bg-white/25"
+      >
+        <Square className="h-3 w-3 fill-current" aria-hidden />
+      </button>
+      <Truck className="h-3.5 w-3.5 shrink-0 text-sky-300" aria-hidden />
+      <span className="min-w-0 flex-1 truncate tabular-nums">
+        {route.name} · {formatDuration(driveSeconds)} in
+        {checkpoint && checkpoint.index > 0 && ` · mile ${Math.round(checkpoint.mile)}`}
+      </span>
+      {checkpoint && <RiskBadge level={checkpoint.level} />}
+      <span className="h-1 w-14 shrink-0 overflow-hidden rounded-full bg-white/20" aria-hidden>
+        <span
+          className="block h-full bg-sky-400"
+          style={{ width: `${(driveSeconds / route.summary.duration_s) * 100}%` }}
+        />
+      </span>
+    </div>
   )
 }
 

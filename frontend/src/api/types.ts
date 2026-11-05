@@ -149,3 +149,18 @@ export interface RiskRules {
   conditions: { key: 'wind' | 'rain' | 'snow'; label: string; unit: string; bands: RiskBand[] }[]
   load_rules: LoadRule[]
 }
+
+export interface DepartureOption {
+  /** Hours after the requested departure. */
+  offset_hours: number
+  departure_time: string
+  arrival_time: string
+  /** The route that would be recommended for this departure. */
+  route_id: string
+  summary: RouteSummary
+}
+
+export interface DepartureOptions {
+  best_offset_hours: number
+  options: DepartureOption[]
+}

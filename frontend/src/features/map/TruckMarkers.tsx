@@ -9,7 +9,9 @@ import { secondsAfterDeparture, truckPosition } from '../heatmap/corridor'
 /** Where the truck would be on each route at the slider's hour. */
 export function TruckMarkers({ plan, selectedId }: { plan: TripPlan; selectedId: string }) {
   const hour = useHeatmap((s) => s.hour)
-  const seconds = secondsAfterDeparture(plan.departure_time, hour)
+  const driveSeconds = useHeatmap((s) => s.driveSeconds)
+  // While driving, trucks move continuously; otherwise they snap to the slider's hour.
+  const seconds = driveSeconds ?? secondsAfterDeparture(plan.departure_time, hour)
 
   return plan.routes.map((route) => {
     const { position, status } = truckPosition(route, seconds)

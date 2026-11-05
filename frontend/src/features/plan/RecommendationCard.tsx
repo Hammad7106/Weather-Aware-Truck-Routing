@@ -3,7 +3,7 @@ import type { TripPlan } from '../../api/types'
 import { cn } from '../../lib/cn'
 import { DEPARTURE_WINDOW, formatDateTime } from '../../lib/time'
 import { usePlanner } from '../../store/planner'
-import { writeTripToUrl } from '../trip/urlState'
+import { useReplanAt } from '../trip/useReplanAt'
 import { useTripTimeZone } from '../trip/useTimeZone'
 import { RiskRulesButton } from '../rules/RiskRulesDialog'
 import { explainRecommendation } from './recommendation'
@@ -56,19 +56,13 @@ export function RecommendationCard({ plan }: { plan: TripPlan }) {
 
 function NoSafeRoute({ plan }: { plan: TripPlan }) {
   const trip = usePlanner((s) => s.submittedTrip)
-  const setDeparture = usePlanner((s) => s.setDeparture)
-  const submit = usePlanner((s) => s.submit)
+  const replanAt = useReplanAt()
   const timeZone = useTripTimeZone()
   const best = plan.routes.find((r) => r.id === plan.recommendation.route_id)
   const latest = Date.now() + DEPARTURE_WINDOW.futureMs
 
   function departLater(hours: number) {
-    if (!trip) return
-    const departure = new Date(new Date(trip.departure_time).getTime() + hours * 3_600_000)
-    const next = { ...trip, departure_time: departure.toISOString() }
-    setDeparture(departure.toISOString())
-    submit(next)
-    writeTripToUrl(next)
+    if (trip) replanAt(new Date(new Date(trip.departure_time).getTime() + hours * 3_600_000))
   }
 
   return (

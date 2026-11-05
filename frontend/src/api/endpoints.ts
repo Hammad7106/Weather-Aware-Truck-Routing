@@ -1,5 +1,13 @@
 import { apiRequest } from './client'
-import type { CorridorWeather, LonLat, Place, RiskRules, TripPlan, TripRequest } from './types'
+import type {
+  CorridorWeather,
+  DepartureOptions,
+  LonLat,
+  Place,
+  RiskRules,
+  TripPlan,
+  TripRequest,
+} from './types'
 
 export interface HealthResponse {
   status: 'ok'
@@ -22,6 +30,9 @@ export const reverseGeocode = (lat: number, lon: number, signal?: AbortSignal) =
 
 export const planTrip = (trip: TripRequest, signal?: AbortSignal) =>
   apiRequest<TripPlan>('/api/plan', { method: 'POST', body: trip, signal })
+
+export const getDepartureOptions = (trip: TripRequest, signal?: AbortSignal) =>
+  apiRequest<DepartureOptions>('/api/departure-options', { method: 'POST', body: trip, signal })
 
 export const getCorridorWeather = (
   body: { paths: LonLat[][]; departure_time: string; load_weight_lb: number },

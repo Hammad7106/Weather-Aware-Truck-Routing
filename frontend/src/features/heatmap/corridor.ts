@@ -108,3 +108,13 @@ export function secondsAfterDeparture(departureIso: string, hour: number): numbe
   const start = corridorStart(departureIso).getTime() + hour * HOUR_MS
   return (start - new Date(departureIso).getTime()) / 1000
 }
+
+/** Index of the checkpoint the truck has most recently passed, `seconds` after departure. */
+export function checkpointAt(route: RouteOption, seconds: number): number {
+  let index = 0
+  for (const checkpoint of route.checkpoints) {
+    if (checkpoint.eta_offset_s > seconds) break
+    index = checkpoint.index
+  }
+  return index
+}
