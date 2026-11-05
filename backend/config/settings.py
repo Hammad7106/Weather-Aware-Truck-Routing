@@ -93,13 +93,24 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.AllowAny"],
     "UNAUTHENTICATED_USER": None,
     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
-    "DEFAULT_THROTTLE_CLASSES": ["rest_framework.throttling.AnonRateThrottle"],
-    "DEFAULT_THROTTLE_RATES": {"anon": env("API_THROTTLE_RATE", default="120/min")},
+    "DEFAULT_THROTTLE_CLASSES": [
+        "rest_framework.throttling.AnonRateThrottle",
+        "rest_framework.throttling.ScopedRateThrottle",
+    ],
+    "DEFAULT_THROTTLE_RATES": {
+        "anon": env("API_THROTTLE_RATE", default="120/min"),
+        # Each plan or corridor request makes several upstream calls; keep them in budget.
+        "plan": env("PLAN_THROTTLE_RATE", default="20/min"),
+        "corridor": env("PLAN_THROTTLE_RATE", default="20/min"),
+        "geocode": env("GEOCODE_THROTTLE_RATE", default="90/min"),
+    },
+    "EXCEPTION_HANDLER": "planner.errors.exception_handler",
 }
 
 # --- Third-party APIs -------------------------------------------------------
 
 TOMTOM_API_KEY = env("TOMTOM_API_KEY", default="")
+TOMTOM_BASE_URL = env("TOMTOM_BASE_URL", default="https://api.tomtom.com")
 OPEN_METEO_BASE_URL = env("OPEN_METEO_BASE_URL", default="https://api.open-meteo.com/v1/forecast")
 HTTP_TIMEOUT_SECONDS = env.float("HTTP_TIMEOUT_SECONDS", default=15.0)
 
@@ -120,4 +131,10 @@ LOGGING = {
     "disable_existing_loggers": False,
     "handlers": {"console": {"class": "logging.StreamHandler"}},
     "root": {"handlers": ["console"], "level": env("LOG_LEVEL", default="INFO")},
+    "loggers": {
+        # httpx logs full request URLs at INFO, and TomTom takes its API key as a query
+        # parameter. Keep these at WARNING so the key never reaches the logs.
+        "httpx": {"level": "WARNING"},
+        "httpcore": {"level": "WARNING"},
+    },
 }
