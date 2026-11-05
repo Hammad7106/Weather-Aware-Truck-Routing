@@ -1,9 +1,10 @@
 import { CircleCheck, CircleSlash, Minus, OctagonAlert, ShieldCheck } from 'lucide-react'
 import type { TripPlan } from '../../api/types'
 import { cn } from '../../lib/cn'
-import { DEPARTURE_WINDOW, formatDateTime, toLocalInputValue } from '../../lib/time'
+import { DEPARTURE_WINDOW, formatDateTime } from '../../lib/time'
 import { usePlanner } from '../../store/planner'
 import { writeTripToUrl } from '../trip/urlState'
+import { useTripTimeZone } from '../trip/useTimeZone'
 import { RiskRulesButton } from '../rules/RiskRulesDialog'
 import { explainRecommendation } from './recommendation'
 
@@ -57,6 +58,7 @@ function NoSafeRoute({ plan }: { plan: TripPlan }) {
   const trip = usePlanner((s) => s.submittedTrip)
   const setDeparture = usePlanner((s) => s.setDeparture)
   const submit = usePlanner((s) => s.submit)
+  const timeZone = useTripTimeZone()
   const best = plan.routes.find((r) => r.id === plan.recommendation.route_id)
   const latest = Date.now() + DEPARTURE_WINDOW.futureMs
 
@@ -64,7 +66,7 @@ function NoSafeRoute({ plan }: { plan: TripPlan }) {
     if (!trip) return
     const departure = new Date(new Date(trip.departure_time).getTime() + hours * 3_600_000)
     const next = { ...trip, departure_time: departure.toISOString() }
-    setDeparture(toLocalInputValue(departure))
+    setDeparture(departure.toISOString())
     submit(next)
     writeTripToUrl(next)
   }
@@ -93,7 +95,11 @@ function NoSafeRoute({ plan }: { plan: TripPlan }) {
               key={hours}
               type="button"
               disabled={tooLate}
-              title={tooLate ? 'Beyond the 7-day forecast' : formatDateTime(new Date(departure))}
+              title={
+                tooLate
+                  ? 'Beyond the 7-day forecast'
+                  : formatDateTime(new Date(departure), timeZone)
+              }
               onClick={() => departLater(hours)}
               className="inline-flex items-center gap-1 rounded-full border border-purple-300 bg-white px-2.5 py-1 text-xs font-medium text-purple-800 transition hover:bg-purple-100 disabled:opacity-40"
             >

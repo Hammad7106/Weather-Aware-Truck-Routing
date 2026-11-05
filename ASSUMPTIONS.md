@@ -6,12 +6,12 @@ a unit test that pins it down.
 
 ## 1. Inputs
 
-| Input                | Decision                                                                                                                                                                                                                                         |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Origin / destination | Picked from address autocomplete (TomTom Search, limited to the US, Canada and Mexico), clicked on the map, or taken from the browser's location. The API receives coordinates, so the backend never has to guess which "Springfield" was meant. |
-| Departure date/time  | Entered in the driver's local time zone and sent as ISO 8601 with its UTC offset. Allowed range: up to 1 hour in the past (treated as "now") to **7 days** ahead, so the whole trip stays inside the forecast window.                            |
-| Load weight          | **Cargo weight in pounds**, 0–80,000 lb. The load rules use this number exactly as entered.                                                                                                                                                      |
-| Checkpoint spacing   | "Sample weather every 10 / 25 / 50 miles" is read as **a spacing the driver chooses**: 10, 25 or 50 miles (default 25). Smaller spacing gives more detail and makes more weather lookups.                                                        |
+| Input                | Decision                                                                                                                                                                                                                                                                                                                |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Origin / destination | Picked from address autocomplete (TomTom Search, limited to the US, Canada and Mexico), clicked on the map, or taken from the browser's location. The API receives coordinates, so the backend never has to guess which "Springfield" was meant.                                                                        |
+| Departure date/time  | Entered and shown on the **start city's clock** (its IANA time zone comes from Open-Meteo), because that is the clock the driver will see. Sent to the API as an absolute UTC time. Allowed range: up to 1 hour in the past (treated as "now") to **7 days** ahead, so the whole trip stays inside the forecast window. |
+| Load weight          | **Cargo weight in pounds**, 0–80,000 lb. The load rules use this number exactly as entered.                                                                                                                                                                                                                             |
+| Checkpoint spacing   | "Sample weather every 10 / 25 / 50 miles" is read as **a spacing the driver chooses**: 10, 25 or 50 miles (default 25). Smaller spacing gives more detail and makes more weather lookups.                                                                                                                               |
 
 ## 2. Routing
 
@@ -130,18 +130,29 @@ ranked first, but the UI shows a clear warning that no route is safe at this dep
 - **Corridor:** a grid of points covering the area around all route options, keeping only points
   within about 40 miles of any route. Grid spacing adapts to trip length so there are at most
   about 300 points.
-- **Time axis:** the slider runs from **0 to 48 hours after departure**, in 1-hour steps. All 49
-  hours come back in one response, so moving the slider makes no network request.
+- **Time axis:** the slider runs from **0 to 48 hours after departure** (departure rounded down
+  to the hour), in 1-hour steps. All 49 hours come back in one response and are stored on the
+  map features, so moving the slider only changes a paint expression: no network request and
+  no data upload.
 - **What it shows:** risk level (the same rules as checkpoints, including the load rules), or raw
-  wind, rain or snow, chosen with a toggle.
+  wind, rain or snow, chosen with a toggle. The colour scales put their steps on the risk
+  thresholds (for example 25 / 35 / 45 / 55 mph for wind).
+- **Honest colours:** a heatmap adds up overlapping points, which would make a uniform
+  "Moderate" area look "High". The blur radius is set to twice the grid spacing and the intensity
+  is calibrated (from MapLibre's Gaussian kernel) so a uniform area shows its true value. Low
+  risk shows as a faint green tint so the corridor stays visible; missing data is transparent.
+- **Close-up:** above zoom 8.5 the blur gets coarse, so the heatmap fades into one circle per
+  grid cell. Hovering any cell shows its exact values for the selected hour.
 - **Truck position:** at each slider hour the map shows where the truck would be on each route,
-  using the same ETA model as the checkpoints.
+  using the same ETA model as the checkpoints. The slider track shades the hours the selected
+  route is on the road.
 
 ## 9. Scope and limitations
 
 - North America only (the autocomplete is limited to the US, Canada and Mexico; routing and
   weather would work anywhere).
 - No user accounts or saved trips. A trip can be shared through its URL instead.
+- All times on a trip are shown in the start city's time zone, even where the route crosses into another zone (the zone is named next to the departure time).
 - Forecasts lose accuracy beyond ~3 days. The UI shows how far ahead each value is.
 - Freezing rain, fog, visibility and road closures are not in the brief's rules and are not
   classified.

@@ -50,3 +50,29 @@ body {
 .checkpoint-popup .maplibregl-popup-close-button {
   @apply top-1 right-1.5 text-base text-slate-400 hover:bg-transparent hover:text-slate-700;
 }
+
+/* Forecast hour slider: the track shows the driving window (set inline). */
+.hour-slider {
+  @apply h-1.5 cursor-pointer appearance-none rounded-full;
+}
+.hour-slider:focus-visible {
+  @apply outline-none;
+}
+.hour-slider::-webkit-slider-thumb {
+  @apply h-4 w-4 appearance-none rounded-full border-2 border-sky-600 bg-white shadow;
+}
+.hour-slider:focus-visible::-webkit-slider-thumb {
+  @apply ring-4 ring-sky-200;
+}
+.hour-slider::-moz-range-thumb {
+  @apply h-3.5 w-3.5 rounded-full border-2 border-sky-600 bg-white shadow;
+}
+
+/* Corridor cell hover tooltip. */
+.cell-tooltip {
+  @apply pointer-events-none;
+  z-index: 6;
+}
+.cell-tooltip .maplibregl-popup-content {
+  @apply rounded-lg px-2.5 py-1.5 shadow-lg;
+}

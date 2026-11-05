@@ -1,12 +1,15 @@
 import { ArrowRight, CalendarClock, Pencil, Ruler, Weight } from 'lucide-react'
 import type { TripRequest } from '../../api/types'
-import { formatDateTime } from '../../lib/time'
+import { formatDateTime, timeZoneName } from '../../lib/time'
 import { usePlanner } from '../../store/planner'
 import { ROLE_STYLE } from './roleStyle'
+import { useTripTimeZone } from './useTimeZone'
 
 /** One-line summary of the planned trip, shown instead of the form once results are in. */
 export function TripSummary({ trip }: { trip: TripRequest }) {
   const setFormOpen = usePlanner((s) => s.setFormOpen)
+  const timeZone = useTripTimeZone()
+  const departure = new Date(trip.departure_time)
 
   return (
     <section
@@ -32,7 +35,7 @@ export function TripSummary({ trip }: { trip: TripRequest }) {
       <p className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-slate-500">
         <span className="inline-flex items-center gap-1">
           <CalendarClock className="h-3 w-3" aria-hidden />
-          {formatDateTime(new Date(trip.departure_time))}
+          {formatDateTime(departure, timeZone)} {timeZoneName(departure, timeZone)}
         </span>
         <span className="inline-flex items-center gap-1">
           <Weight className="h-3 w-3" aria-hidden />

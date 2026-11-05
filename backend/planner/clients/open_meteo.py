@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 SERVICE = "Open-Meteo"
 GRID_DEGREES = 0.05
+TIMEZONE_CACHE_SECONDS = 30 * 24 * 60 * 60
 HOUR = 3600
 HOURLY_VARIABLES = (
     "wind_speed_10m",
@@ -128,6 +129,35 @@ class OpenMeteoClient:
             self._cache.set_many({keys[cell]: found[cell] for cell in missing}, self._ttl)
 
         return [found.get(cell) for cell in cells]
+
+    def timezone(self, point: LatLon) -> str | None:
+        """IANA time zone of a point (e.g. "America/Denver"), or None if unknown.
+
+        Time zones change rarely, so lookups are cached for 30 days per grid cell.
+        """
+        cell = snap(point)
+        key = f"om:tz:v1:{cell.lat:.2f},{cell.lon:.2f}"
+        cached = self._cache.get(key)
+        if cached is not None:
+            return cached or None
+        try:
+            response = self._http.get(
+                self._url,
+                params={
+                    "latitude": f"{cell.lat:.2f}",
+                    "longitude": f"{cell.lon:.2f}",
+                    "timezone": "auto",
+                    "forecast_days": 1,
+                },
+            )
+        except httpx.HTTPError as exc:
+            raise UpstreamError(SERVICE, "the weather service could not be reached") from exc
+        if response.status_code != 200:
+            raise UpstreamError(SERVICE, _error_reason(response) or "time zone lookup failed")
+        zone = response.json().get("timezone")
+        name = zone if isinstance(zone, str) and "/" in zone else ""
+        self._cache.set(key, name, TIMEZONE_CACHE_SECONDS)
+        return name or None
 
     @staticmethod
     def _cache_key(cell: LatLon, window: tuple[datetime, datetime]) -> str:

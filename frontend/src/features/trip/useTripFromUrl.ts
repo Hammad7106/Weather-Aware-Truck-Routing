@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { roundUp, toLocalInputValue } from '../../lib/time'
+import { roundUp } from '../../lib/time'
 import { usePlanner } from '../../store/planner'
 import { draftFromSearch } from './urlState'
 import { toTripRequest, validateDraft } from './validation'
@@ -22,7 +22,7 @@ export function useTripFromUrl() {
     if (Object.keys(errors).length === 0) {
       submit(toTripRequest(draft))
     } else if (errors.departure) {
-      setDeparture(toLocalInputValue(roundUp(now, 5)))
+      setDeparture(roundUp(now, 5).toISOString())
     }
   }, [])
 }

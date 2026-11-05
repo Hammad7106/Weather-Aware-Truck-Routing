@@ -6,22 +6,36 @@ import {
   formatDateTime,
   formatRelative,
   fromLocalInputValue,
+  sameMinute,
   timeZoneName,
   toLocalInputValue,
 } from '../../lib/time'
 import { useNow } from '../../lib/useNow'
 import { usePlanner } from '../../store/planner'
+import { useDraftTimeZone } from './useTimeZone'
 
+/** Departure time, entered and shown on the start city's clock. */
 export function DepartureField({ error }: { error?: string }) {
   const departure = usePlanner((s) => s.draft.departure)
   const setDeparture = usePlanner((s) => s.setDeparture)
+  const timeZone = useDraftTimeZone()
   const now = useNow()
-  const date = fromLocalInputValue(departure)
+  const date = departure ? new Date(departure) : null
+  const valid = date !== null && !Number.isNaN(date.getTime())
+  const zoneLabel = valid ? timeZoneName(date, timeZone) : ''
 
   return (
     <div>
-      <label htmlFor="field-departure" className="mb-1 block text-xs font-medium text-slate-600">
+      <label
+        htmlFor="field-departure"
+        className="mb-1 flex items-baseline justify-between text-xs font-medium text-slate-600"
+      >
         Departure
+        {zoneLabel && (
+          <span className="font-normal text-slate-400">
+            {timeZone ? `start city time (${zoneLabel})` : `your time (${zoneLabel})`}
+          </span>
+        )}
       </label>
       <div
         className={cn(
@@ -36,10 +50,12 @@ export function DepartureField({ error }: { error?: string }) {
           id="field-departure"
           type="datetime-local"
           step={300}
-          min={toLocalInputValue(new Date(now.getTime() - DEPARTURE_WINDOW.pastGraceMs))}
-          max={toLocalInputValue(new Date(now.getTime() + DEPARTURE_WINDOW.futureMs))}
-          value={departure}
-          onChange={(event) => setDeparture(event.target.value)}
+          min={toLocalInputValue(new Date(now.getTime() - DEPARTURE_WINDOW.pastGraceMs), timeZone)}
+          max={toLocalInputValue(new Date(now.getTime() + DEPARTURE_WINDOW.futureMs), timeZone)}
+          value={valid ? toLocalInputValue(date, timeZone) : ''}
+          onChange={(event) =>
+            setDeparture(fromLocalInputValue(event.target.value, timeZone)?.toISOString() ?? '')
+          }
           aria-invalid={Boolean(error)}
           aria-describedby="departure-hint"
           className="min-w-0 flex-1 bg-transparent px-2.5 py-2 text-sm text-slate-900 outline-none"
@@ -48,14 +64,14 @@ export function DepartureField({ error }: { error?: string }) {
 
       <div className="mt-2 flex flex-wrap gap-1.5" role="group" aria-label="Departure shortcuts">
         {DEPARTURE_PRESETS.map((preset) => {
-          const value = toLocalInputValue(preset.value(now))
-          const selected = value === departure
+          const value = preset.value(now, timeZone)
+          const selected = valid && sameMinute(value, date)
           return (
             <button
               key={preset.label}
               type="button"
               aria-pressed={selected}
-              onClick={() => setDeparture(value)}
+              onClick={() => setDeparture(value.toISOString())}
               className={cn(
                 'rounded-full border px-2.5 py-1 text-xs font-medium transition',
                 selected
@@ -74,8 +90,8 @@ export function DepartureField({ error }: { error?: string }) {
         className={cn('mt-1.5 text-xs', error ? 'text-red-600' : 'text-slate-500')}
       >
         {error ??
-          (date
-            ? `${formatDateTime(date)} ${timeZoneName(date)} · ${formatRelative(date, now)}`
+          (valid
+            ? `${formatDateTime(date, timeZone)} ${zoneLabel} · ${formatRelative(date, now)}`
             : 'Up to 7 days ahead.')}
       </p>
     </div>

@@ -1,8 +1,7 @@
 import { useEffect } from 'react'
 import { useMap } from 'react-map-gl/maplibre'
+import { mapPadding } from '../../store/layout'
 import { usePlanner } from '../../store/planner'
-
-const PADDING = { top: 80, bottom: 80, left: 80, right: 80 }
 
 /** Fraction of the viewport the trip must span before we stop zooming in to it. */
 const MIN_FILL = 0.3
@@ -40,7 +39,7 @@ export function CameraController() {
       const latFill =
         Math.abs(points[0][1] - points[1][1]) / (bounds.getNorth() - bounds.getSouth())
       if (allVisible && Math.max(lonFill, latFill) >= MIN_FILL) return
-      map.fitBounds([points[0], points[1]], { padding: PADDING, duration: 900, maxZoom: 10 })
+      map.fitBounds([points[0], points[1]], { padding: mapPadding(60), duration: 900, maxZoom: 10 })
     }
   }, [map, oLat, oLon, dLat, dLon])
 

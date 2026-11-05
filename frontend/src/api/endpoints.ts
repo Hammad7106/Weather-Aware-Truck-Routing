@@ -27,3 +27,8 @@ export const getCorridorWeather = (
   body: { paths: LonLat[][]; departure_time: string; load_weight_lb: number },
   signal?: AbortSignal,
 ) => apiRequest<CorridorWeather>('/api/corridor-weather', { method: 'POST', body, signal })
+
+export const getTimeZone = (lat: number, lon: number, signal?: AbortSignal) =>
+  apiRequest<{ timezone: string | null }>('/api/timezone', { query: { lat, lon }, signal }).then(
+    (r) => r.timezone,
+  )

@@ -3,6 +3,7 @@ import { useEffect, useMemo } from 'react'
 import { Layer, Popup, Source, useMap } from 'react-map-gl/maplibre'
 import type { RouteOption } from '../../api/types'
 import { NO_DATA_STYLE, RISK_STYLES } from '../../lib/risk'
+import { mapPadding } from '../../store/layout'
 import { usePlanner } from '../../store/planner'
 import { CheckpointDetails } from '../plan/CheckpointDetails'
 
@@ -62,7 +63,8 @@ export function SelectedRouteLayers({
   useEffect(() => {
     if (!map || !selectedCheckpoint) return
     const point: [number, number] = [selectedCheckpoint.lon, selectedCheckpoint.lat]
-    if (!map.getBounds().contains(point)) map.easeTo({ center: point, duration: 700 })
+    if (!map.getBounds().contains(point))
+      map.easeTo({ center: point, padding: mapPadding(0), duration: 700 })
   }, [map, selectedCheckpoint])
 
   const focus = hovered ?? selected ?? -1

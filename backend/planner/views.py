@@ -20,6 +20,7 @@ from .domain.geo import LatLon
 from .serializers import (
     CorridorSerializer,
     GeocodeQuerySerializer,
+    PointQuerySerializer,
     ReverseGeocodeQuerySerializer,
     TripSerializer,
 )
@@ -126,3 +127,17 @@ class ReverseGeocodeView(APIView):
 
         place = PlaceService(providers.routing_client(), cache).reverse(point)
         return Response({"result": presenters.place(place)})
+
+
+class TimezoneView(APIView):
+    """IANA time zone of a point, so times can be shown in the trip's local time."""
+
+    throttle_scope = "geocode"
+
+    def get(self, request: Request) -> Response:
+        serializer = PointQuerySerializer(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
+        point = LatLon(serializer.validated_data["lat"], serializer.validated_data["lon"])
+        response = Response({"timezone": providers.weather_client().timezone(point)})
+        patch_cache_control(response, public=True, max_age=24 * 60 * 60)
+        return response

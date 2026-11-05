@@ -7,6 +7,7 @@ import { riskStyle } from '../../lib/risk'
 import { formatClock } from '../../lib/time'
 import { describeWeatherCode } from '../../lib/weather'
 import { usePlanner } from '../../store/planner'
+import { useTripTimeZone } from '../trip/useTimeZone'
 
 type Filter = 'all' | 'risky'
 
@@ -27,6 +28,7 @@ export function CheckpointTimeline({ route }: { route: RouteOption }) {
   const hoverCheckpoint = usePlanner((s) => s.hoverCheckpoint)
   const selectCheckpoint = usePlanner((s) => s.selectCheckpoint)
   const [filter, setFilter] = useState<Filter>('all')
+  const timeZone = useTripTimeZone()
   const rows = useRef(new Map<number, HTMLButtonElement>())
 
   const risky = route.checkpoints.filter((cp) => cp.level === null || cp.level >= 1)
@@ -119,7 +121,7 @@ export function CheckpointTimeline({ route }: { route: RouteOption }) {
                   />
                   <span className="w-16 shrink-0 tabular-nums">
                     <span className="block font-medium text-slate-800">
-                      {formatClock(new Date(cp.eta), departure)}
+                      {formatClock(new Date(cp.eta), departure, timeZone)}
                     </span>
                     <span className="block text-[10px] text-slate-400">
                       {cp.index === 0 ? 'start' : `mile ${cp.mile}`}

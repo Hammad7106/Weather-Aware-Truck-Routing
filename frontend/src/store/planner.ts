@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type { CheckpointInterval, Place, TripRequest } from '../api/types'
 import { safeStorage } from '../lib/storage'
-import { roundUp, toLocalInputValue } from '../lib/time'
+import { roundUp } from '../lib/time'
 
 export type PlaceRole = 'origin' | 'destination'
 
@@ -13,7 +13,8 @@ export interface DraftPlace extends Place {
 export interface TripDraft {
   origin: DraftPlace | null
   destination: DraftPlace | null
-  /** datetime-local value in the browser's time zone. */
+  /** Departure moment as ISO 8601, or '' when the field is empty or invalid. Kept absolute so
+   * the field can show it on the start city's clock even when that zone resolves later. */
   departure: string
   loadLb: number
   intervalMiles: CheckpointInterval
@@ -70,7 +71,7 @@ export const usePlanner = create<PlannerState>()((set) => ({
   draft: {
     origin: null,
     destination: null,
-    departure: toLocalInputValue(roundUp(new Date(), 15)),
+    departure: roundUp(new Date(), 15).toISOString(),
     loadLb: DEFAULT_LOAD_LB,
     intervalMiles: 25,
   },

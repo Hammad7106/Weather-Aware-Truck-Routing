@@ -201,3 +201,19 @@ def test_wrong_method_uses_the_standard_error_shape(api):
     response = api.get("/api/plan")
     assert response.status_code == 405
     assert set(response.json()) == {"detail", "code"}
+
+
+def test_timezone_endpoint(api, monkeypatch):
+    class Zones:
+        def timezone(self, point):
+            return "America/Edmonton" if point.lat > 49 else None
+
+    monkeypatch.setattr(providers, "weather_client", Zones)
+
+    found = api.get("/api/timezone", {"lat": 51.04, "lon": -114.07})
+    unknown = api.get("/api/timezone", {"lat": 0, "lon": -30})
+
+    assert found.json() == {"timezone": "America/Edmonton"}
+    assert "max-age=86400" in found["Cache-Control"]
+    assert unknown.json() == {"timezone": None}
+    assert api.get("/api/timezone", {"lat": 100, "lon": 0}).status_code == 400

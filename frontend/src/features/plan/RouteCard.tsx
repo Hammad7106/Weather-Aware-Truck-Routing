@@ -5,6 +5,7 @@ import { RiskBar, RiskBreakdown } from '../../components/RiskBar'
 import { cn } from '../../lib/cn'
 import { formatClock, formatDuration } from '../../lib/time'
 import { usePlanner } from '../../store/planner'
+import { useTripTimeZone } from '../trip/useTimeZone'
 
 const TRAFFIC_NOTE_SECONDS = 5 * 60
 
@@ -18,6 +19,7 @@ export function RouteCard({ route, recommended, selected }: RouteCardProps) {
   const hovered = usePlanner((s) => s.hoveredRouteId === route.id)
   const selectRoute = usePlanner((s) => s.selectRoute)
   const hoverRoute = usePlanner((s) => s.hoverRoute)
+  const timeZone = useTripTimeZone()
   const { summary } = route
   const departure = new Date(route.departure_time)
   const arrival = new Date(route.arrival_time)
@@ -75,7 +77,7 @@ export function RouteCard({ route, recommended, selected }: RouteCardProps) {
           value={`${summary.distance_miles.toLocaleString()} mi`}
         />
         <Stat icon={Clock} label="Drive time" value={formatDuration(summary.duration_s)} />
-        <Stat icon={Flag} label="Arrives" value={formatClock(arrival, departure)} />
+        <Stat icon={Flag} label="Arrives" value={formatClock(arrival, departure, timeZone)} />
       </dl>
 
       <RiskBar summary={summary} className="mt-3" />

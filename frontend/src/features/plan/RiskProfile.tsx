@@ -3,6 +3,7 @@ import type { RouteOption } from '../../api/types'
 import { riskStyle } from '../../lib/risk'
 import { formatClock } from '../../lib/time'
 import { usePlanner } from '../../store/planner'
+import { useTripTimeZone } from '../trip/useTimeZone'
 
 const WIDTH = 1000
 const HEIGHT = 72
@@ -23,6 +24,7 @@ export function RiskProfile({ route }: { route: RouteOption }) {
   const hoverCheckpoint = usePlanner((s) => s.hoverCheckpoint)
   const selectCheckpoint = usePlanner((s) => s.selectCheckpoint)
   const svgRef = useRef<SVGSVGElement>(null)
+  const timeZone = useTripTimeZone()
 
   const total = route.summary.distance_miles || 1
   const x = (mile: number) => (mile / total) * WIDTH
@@ -81,7 +83,7 @@ export function RiskProfile({ route }: { route: RouteOption }) {
             transform: `translate(-${(focused.mile / total) * 100}%, -100%)`,
           }}
         >
-          Mile {focused.mile} · {formatClock(new Date(focused.eta), departure)} ·{' '}
+          Mile {focused.mile} · {formatClock(new Date(focused.eta), departure, timeZone)} ·{' '}
           <span style={{ color: riskStyle(focused.level).soft }}>
             {riskStyle(focused.level).label}
           </span>
@@ -173,10 +175,10 @@ export function RiskProfile({ route }: { route: RouteOption }) {
       </svg>
 
       <div className="mt-1 flex justify-between text-[10px] text-slate-400 tabular-nums">
-        <span>0 mi · {formatClock(departure, departure)}</span>
+        <span>0 mi · {formatClock(departure, departure, timeZone)}</span>
         <span>
           {route.summary.distance_miles.toLocaleString()} mi ·{' '}
-          {formatClock(new Date(route.arrival_time), departure)}
+          {formatClock(new Date(route.arrival_time), departure, timeZone)}
         </span>
       </div>
     </figure>

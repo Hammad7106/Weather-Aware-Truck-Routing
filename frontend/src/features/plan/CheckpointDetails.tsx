@@ -3,6 +3,7 @@ import type { Checkpoint, RiskDriver, RiskLevel } from '../../api/types'
 import { RiskBadge } from '../../components/RiskBadge'
 import { cn } from '../../lib/cn'
 import { describeWeatherCode } from '../../lib/weather'
+import { useTripTimeZone } from '../trip/useTimeZone'
 import { formatDateTime, formatDuration } from '../../lib/time'
 
 const fmt = (value: number | null, digits: number) =>
@@ -10,6 +11,7 @@ const fmt = (value: number | null, digits: number) =>
 
 /** Everything known about one checkpoint: when the truck gets there, the weather, and why. */
 export function CheckpointDetails({ checkpoint }: { checkpoint: Checkpoint }) {
+  const timeZone = useTripTimeZone()
   const { weather, factors, drivers } = checkpoint
   const kind = describeWeatherCode(weather?.weather_code ?? null)
   const KindIcon = kind.icon
@@ -22,7 +24,7 @@ export function CheckpointDetails({ checkpoint }: { checkpoint: Checkpoint }) {
             {checkpoint.index === 0 ? 'Start' : `Mile ${fmt(checkpoint.mile, 1)}`}
           </p>
           <p className="text-sm font-semibold text-slate-900">
-            {formatDateTime(new Date(checkpoint.eta))}
+            {formatDateTime(new Date(checkpoint.eta), timeZone)}
           </p>
           <p className="text-[11px] text-slate-500">
             {checkpoint.eta_offset_s === 0

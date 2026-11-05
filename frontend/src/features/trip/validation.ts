@@ -1,7 +1,7 @@
 import type { FieldErrors } from '../../api/client'
 import type { TripRequest } from '../../api/types'
 import { haversineMiles } from '../../lib/geo'
-import { DEPARTURE_WINDOW, fromLocalInputValue } from '../../lib/time'
+import { DEPARTURE_WINDOW } from '../../lib/time'
 import type { TripDraft } from '../../store/planner'
 
 export const MAX_LOAD_LB = 80_000
@@ -21,8 +21,8 @@ export function validateDraft(draft: TripDraft, now: Date): TripErrors {
   else if (draft.origin && haversineMiles(draft.origin, draft.destination) < 1)
     errors.destination = 'Destination must be at least 1 mile from the start.'
 
-  const departure = fromLocalInputValue(draft.departure)
-  if (!departure) errors.departure = 'Choose a departure time.'
+  const departure = draft.departure ? new Date(draft.departure) : null
+  if (!departure || Number.isNaN(departure.getTime())) errors.departure = 'Choose a departure time.'
   else if (departure.getTime() < now.getTime() - DEPARTURE_WINDOW.pastGraceMs)
     errors.departure = 'Departure is in the past.'
   else if (departure.getTime() > now.getTime() + DEPARTURE_WINDOW.futureMs)
@@ -44,7 +44,7 @@ export function toTripRequest(draft: TripDraft): TripRequest {
   return {
     origin: strip(draft.origin!),
     destination: strip(draft.destination!),
-    departure_time: fromLocalInputValue(draft.departure)!.toISOString(),
+    departure_time: new Date(draft.departure).toISOString(),
     load_weight_lb: draft.loadLb,
     checkpoint_interval_miles: draft.intervalMiles,
   }

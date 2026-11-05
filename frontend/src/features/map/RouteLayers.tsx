@@ -5,7 +5,9 @@ import type { TripPlan } from '../../api/types'
 import { cn } from '../../lib/cn'
 import { boundsOf, pointAlong } from '../../lib/geo'
 import { formatDuration } from '../../lib/time'
+import { mapPadding } from '../../store/layout'
 import { usePlanner } from '../../store/planner'
+import { ROUTES_BOTTOM_LAYER, useFirstLabelLayer } from './layerOrder'
 import { SelectedRouteLayers } from './SelectedRouteLayers'
 
 /** Invisible wide line used for hover and click hit-testing. */
@@ -17,13 +19,6 @@ const ALT_COLOR = '#94a3b8'
 const ALT_HOVER_COLOR = '#475569'
 /** Where each route's label sits along it, so labels on shared highways do not overlap. */
 const LABEL_POSITIONS = [0.5, 0.33, 0.67]
-const FIT_PADDING = { top: 70, bottom: 70, left: 70, right: 70 }
-
-/** The id of the basemap's first label layer, so routes draw beneath place names. */
-function useFirstLabelLayer(): string | undefined {
-  const { current: map } = useMap()
-  return useMemo(() => map?.getStyle()?.layers?.find((layer) => layer.type === 'symbol')?.id, [map])
-}
 
 export function RouteLayers({ plan, selectedId }: { plan: TripPlan; selectedId: string }) {
   const { current: map } = useMap()
@@ -43,11 +38,17 @@ export function RouteLayers({ plan, selectedId }: { plan: TripPlan; selectedId: 
     [plan],
   )
 
-  // Frame all route options whenever a new plan arrives.
+  // Frame all route options whenever a new plan arrives. Wait two frames so overlays that
+  // mount with the plan have been measured (their size feeds the padding).
   useEffect(() => {
     if (!map) return
     const bounds = boundsOf(plan.routes.flatMap((route) => route.geometry))
-    map.fitBounds(bounds, { padding: FIT_PADDING, duration: 1000, maxZoom: 11 })
+    let frame = requestAnimationFrame(() => {
+      frame = requestAnimationFrame(() =>
+        map.fitBounds(bounds, { padding: mapPadding(50), duration: 1000, maxZoom: 11 }),
+      )
+    })
+    return () => cancelAnimationFrame(frame)
   }, [map, plan])
 
   const isSelected: ExpressionSpecification = ['==', ['get', 'id'], selectedId]
@@ -57,7 +58,7 @@ export function RouteLayers({ plan, selectedId }: { plan: TripPlan; selectedId: 
     <>
       <Source id="routes" type="geojson" data={data}>
         <Layer
-          id="routes-alt-casing"
+          id={ROUTES_BOTTOM_LAYER}
           type="line"
           beforeId={beforeId}
           filter={['!', isSelected]}

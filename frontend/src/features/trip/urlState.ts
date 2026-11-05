@@ -1,6 +1,5 @@
 import type { CheckpointInterval, Place, TripRequest } from '../../api/types'
 import { parseCoordinates } from '../../lib/geo'
-import { toLocalInputValue } from '../../lib/time'
 import type { TripDraft } from '../../store/planner'
 
 /**
@@ -37,7 +36,7 @@ export function draftFromSearch(search: string): Partial<TripDraft> {
   if (destination) draft.destination = destination
 
   const depart = new Date(params.get('depart') ?? '')
-  if (!Number.isNaN(depart.getTime())) draft.departure = toLocalInputValue(depart)
+  if (!Number.isNaN(depart.getTime())) draft.departure = depart.toISOString()
 
   const load = Number(params.get('load'))
   if (params.has('load') && Number.isInteger(load)) draft.loadLb = load

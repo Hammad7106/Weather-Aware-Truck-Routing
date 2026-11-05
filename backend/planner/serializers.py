@@ -89,3 +89,8 @@ class GeocodeQuerySerializer(serializers.Serializer):
 class ReverseGeocodeQuerySerializer(serializers.Serializer):
     lat = serializers.FloatField(min_value=-90, max_value=90)
     lon = serializers.FloatField(min_value=-180, max_value=180)
+
+
+class PointQuerySerializer(serializers.Serializer):
+    lat = serializers.FloatField(min_value=-90, max_value=90)
+    lon = serializers.FloatField(min_value=-180, max_value=180)
