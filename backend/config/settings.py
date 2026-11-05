@@ -16,6 +16,7 @@ env = environ.Env(
     ALLOWED_HOSTS=(list, ["localhost", "127.0.0.1"]),
     CORS_ALLOWED_ORIGINS=(list, ["http://localhost:5173", "http://127.0.0.1:5173"]),
     CSRF_TRUSTED_ORIGINS=(list, []),
+    CORS_ALLOWED_ORIGIN_REGEXES=(list, []),
 )
 environ.Env.read_env(BASE_DIR / ".env")
 
@@ -84,6 +85,9 @@ STORAGES = {
 # --- CORS / CSRF ------------------------------------------------------------
 
 CORS_ALLOWED_ORIGINS = env("CORS_ALLOWED_ORIGINS")
+# Optional, e.g. ^https://weather-aware-truck-routing-[a-z0-9-]+\.vercel\.app$ so Vercel preview
+# deployments (each has its own URL) can call the API too.
+CORS_ALLOWED_ORIGIN_REGEXES = env("CORS_ALLOWED_ORIGIN_REGEXES")
 CSRF_TRUSTED_ORIGINS = env("CSRF_TRUSTED_ORIGINS")
 
 # --- Django REST Framework --------------------------------------------------
@@ -122,12 +126,17 @@ HTTP_TIMEOUT_SECONDS = env.float("HTTP_TIMEOUT_SECONDS", default=15.0)
 if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
     SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=True)
+    # The host's health probe calls the app directly over HTTP inside its network; a redirect
+    # there could mark a healthy service as down.
+    SECURE_REDIRECT_EXEMPT = [r"^api/health$"]
     SECURE_CONTENT_TYPE_NOSNIFF = True
     SECURE_HSTS_SECONDS = env.int("SECURE_HSTS_SECONDS", default=3600)
 
 # The API is token-less and cookie-less (no sessions, no auth), so CSRF middleware
 # provides no protection here; silence the deploy-check warning about it.
-SILENCED_SYSTEM_CHECKS = ["security.W003"]
+# HSTS for subdomains/preload must not be set on a shared host domain such as onrender.com,
+# whose other subdomains belong to other people.
+SILENCED_SYSTEM_CHECKS = ["security.W003", "security.W005", "security.W021"]
 
 LOGGING = {
     "version": 1,

@@ -202,19 +202,20 @@ npm run lint && npm run format:check && npm test && npm run build
 
 **Backend** (`backend/.env`)
 
-| Variable                | Required | Description                                                         |
-| ----------------------- | -------- | ------------------------------------------------------------------- |
-| `TOMTOM_API_KEY`        | yes      | TomTom key (Routing, Search, Reverse Geocoding)                     |
-| `SECRET_KEY`            | prod     | Django secret key                                                   |
-| `DEBUG`                 | –        | `True` locally, `False` in production (default `False`)             |
-| `ALLOWED_HOSTS`         | –        | Comma-separated; the Render hostname is added automatically         |
-| `CORS_ALLOWED_ORIGINS`  | prod     | Comma-separated frontend origins, e.g. the Vercel URL               |
-| `CACHE_URL`             | –        | Cache backend, e.g. Redis (default: in-memory per process)          |
-| `PLAN_THROTTLE_RATE`    | –        | Rate limit for plan and corridor requests (default `20/min`)        |
-| `GEOCODE_THROTTLE_RATE` | –        | Rate limit for search and time zone requests (default `90/min`)     |
-| `LOG_LEVEL`             | –        | Default `INFO`                                                      |
-| `OPEN_METEO_API_KEY`    | –        | Open-Meteo commercial key (higher limits than the free tier)        |
-| `OPEN_METEO_BASE_URL`   | –        | Set to `https://customer-api.open-meteo.com/v1/forecast` with a key |
+| Variable                      | Required | Description                                                         |
+| ----------------------------- | -------- | ------------------------------------------------------------------- |
+| `TOMTOM_API_KEY`              | yes      | TomTom key (Routing, Search, Reverse Geocoding)                     |
+| `SECRET_KEY`                  | prod     | Django secret key                                                   |
+| `DEBUG`                       | –        | `True` locally, `False` in production (default `False`)             |
+| `ALLOWED_HOSTS`               | –        | Comma-separated; the Render hostname is added automatically         |
+| `CORS_ALLOWED_ORIGINS`        | prod     | Comma-separated frontend origins, e.g. the Vercel URL               |
+| `CORS_ALLOWED_ORIGIN_REGEXES` | –        | Optional regexes, e.g. to allow Vercel preview deployments          |
+| `CACHE_URL`                   | –        | Cache backend, e.g. Redis (default: in-memory per process)          |
+| `PLAN_THROTTLE_RATE`          | –        | Rate limit for plan and corridor requests (default `20/min`)        |
+| `GEOCODE_THROTTLE_RATE`       | –        | Rate limit for search and time zone requests (default `90/min`)     |
+| `LOG_LEVEL`                   | –        | Default `INFO`                                                      |
+| `OPEN_METEO_API_KEY`          | –        | Open-Meteo commercial key (higher limits than the free tier)        |
+| `OPEN_METEO_BASE_URL`         | –        | Set to `https://customer-api.open-meteo.com/v1/forecast` with a key |
 
 **Frontend** (`frontend/.env`)
 
@@ -359,13 +360,29 @@ Risk levels are numbers: 0 Low, 1 Moderate, 2 High, 3 Severe, 4 No Travel, `null
 
 ## Deployment
 
-1. **API on Render:** New → Blueprint → choose this repo (it reads `render.yaml`). Set
-   `TOMTOM_API_KEY` and `CORS_ALLOWED_ORIGINS` (your Vercel URL). Health check: `/api/health`.
-2. **Frontend on Vercel:** import the repo and set **Root Directory** to `frontend`. Set
-   `VITE_API_BASE_URL` to the Render URL, then redeploy.
+The API deploys first (the frontend needs its URL), then the frontend, then the API is told the
+frontend's URL for CORS. Both hosts deploy from GitHub, so push your commits first.
+
+1. **API on Render:** New → **Blueprint** → choose this repo. Render reads `render.yaml`
+   (Python, `backend/` folder, `build.sh`, gunicorn, health check `/api/health`) and asks for:
+   - `TOMTOM_API_KEY`: your TomTom key.
+   - `CORS_ALLOWED_ORIGINS`: leave a placeholder such as `https://example.com` for now.
+
+   When the deploy finishes, open `https://<your-service>.onrender.com/api/health`. It should
+   return `{"status":"ok","routing_configured":true}`.
+
+2. **Frontend on Vercel:** Add New → Project → import this repo. Set **Root Directory** to
+   `frontend` (Vite is detected) and add the environment variable `VITE_API_BASE_URL` =
+   `https://<your-service>.onrender.com` (no trailing slash). Deploy.
+3. **Connect them:** in Render → your service → Environment, set `CORS_ALLOWED_ORIGINS` to the
+   Vercel URL, e.g. `https://weather-aware-truck-routing.vercel.app` (no trailing slash). Render
+   redeploys automatically. Optionally allow Vercel preview URLs with
+   `CORS_ALLOWED_ORIGIN_REGEXES`.
+4. **Check:** open the Vercel URL, plan an example trip, open the heatmap and press Drive.
 
 > Render's free tier sleeps after 15 minutes idle, so the first request can take about 50 s.
-> The app shows "The server may be waking up" while it does.
+> The app shows "The server may be waking up" while it does. `VITE_API_BASE_URL` is built into
+> the frontend, so changing it needs a Vercel redeploy.
 
 ## Known limitations
 
