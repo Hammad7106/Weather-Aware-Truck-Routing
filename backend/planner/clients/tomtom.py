@@ -133,11 +133,25 @@ class TomTomClient:
         if any(marker in body for marker in _NO_ROUTE_MARKERS):
             raise NoRouteFound("No truck route was found between these places.")
         logger.warning("TomTom %s on %s: %s", response.status_code, path, body)
-        if response.status_code in (401, 403):
-            raise ConfigurationError("The routing API key was rejected.")
+        if response.status_code == 401:
+            raise ConfigurationError("The TomTom API key is invalid.")
+        if response.status_code == 403:
+            # Each TomTom product (Routing, Search, Reverse Geocoding) is enabled per key.
+            raise ConfigurationError(
+                f"The TomTom API key is not enabled for {_product(path)}. "
+                "Enable it for this key in the TomTom developer dashboard."
+            )
         if response.status_code == 429:
             raise UpstreamError(SERVICE, "rate limit reached, please try again shortly")
         raise UpstreamError(SERVICE, f"request failed with status {response.status_code}")
+
+
+def _product(path: str) -> str:
+    if "/reverseGeocode/" in path:
+        return "the Reverse Geocoding API"
+    if path.startswith("/search/"):
+        return "the Search API"
+    return "the Routing API"
 
 
 def _parse_search_result(result: dict[str, Any]) -> Place | None:

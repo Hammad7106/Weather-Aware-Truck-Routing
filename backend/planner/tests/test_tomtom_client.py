@@ -82,7 +82,8 @@ def test_empty_route_list_means_no_route():
     ("status", "body", "error"),
     [
         (400, '{"detailedError":{"code":"NO_ROUTE_FOUND"}}', NoRouteFound),
-        (403, "Developer Inactive", ConfigurationError),
+        (401, "Invalid key", ConfigurationError),
+        (403, "Forbidden", ConfigurationError),
         (429, "Too Many Requests", UpstreamError),
         (500, "Internal error", UpstreamError),
     ],
@@ -161,3 +162,9 @@ def test_api_key_is_never_logged(caplog):
             DENVER, OMAHA, depart_at=datetime.now(UTC), load_lb=0
         )
     assert "test-key" not in caplog.text
+
+
+def test_forbidden_names_the_missing_product():
+    forbidden = client(lambda request: httpx.Response(403, text="Forbidden"))
+    with pytest.raises(ConfigurationError, match="Reverse Geocoding API"):
+        forbidden.reverse_geocode(LatLon(41, -100))

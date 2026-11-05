@@ -1,48 +1,66 @@
 import { API_BASE_URL } from '../config'
 
-/** Error raised for any non-2xx API response, carrying the server's message when present. */
+/** Field-level validation messages returned with a 400 response. */
+export type FieldErrors = Record<string, unknown>
+
+/** Error raised for any failed request, carrying the server's message and field errors. */
 export class ApiError extends Error {
   readonly status: number
-  readonly details: unknown
+  readonly code: string
+  readonly fieldErrors: FieldErrors
 
-  constructor(status: number, message: string, details?: unknown) {
+  constructor(status: number, message: string, code = 'error', fieldErrors: FieldErrors = {}) {
     super(message)
     this.name = 'ApiError'
     this.status = status
-    this.details = details
+    this.code = code
+    this.fieldErrors = fieldErrors
+  }
+
+  /** Worth retrying: network failures and upstream (5xx) errors, but not missing config. */
+  get isTransient(): boolean {
+    return this.status === 0 || (this.status >= 500 && this.code !== 'not_configured')
   }
 }
 
-type RequestOptions = Omit<RequestInit, 'body'> & { body?: unknown }
+type RequestOptions = Omit<RequestInit, 'body'> & {
+  body?: unknown
+  query?: Record<string, string | number | undefined>
+}
 
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { body, headers, ...rest } = options
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...rest,
-    headers: {
-      Accept: 'application/json',
-      ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
-      ...headers,
-    },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  })
-
-  const payload = await response.json().catch(() => null)
-
-  if (!response.ok) {
-    const message =
-      (payload && typeof payload === 'object' && 'detail' in payload && String(payload.detail)) ||
-      `Request failed (${response.status})`
-    throw new ApiError(response.status, message, payload)
+  const { body, headers, query, ...rest } = options
+  // Resolving against the page origin also supports a relative (same-origin) API base URL.
+  const url = new URL(`${API_BASE_URL}${path}`, window.location.origin)
+  for (const [key, value] of Object.entries(query ?? {})) {
+    if (value !== undefined) url.searchParams.set(key, String(value))
   }
 
+  let response: Response
+  try {
+    response = await fetch(url, {
+      ...rest,
+      headers: {
+        Accept: 'application/json',
+        ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+        ...headers,
+      },
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    })
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') throw error
+    throw new ApiError(0, 'Could not reach the server. Check your connection and try again.')
+  }
+
+  const payload: unknown = await response.json().catch(() => null)
+  if (!response.ok) {
+    const data = (payload ?? {}) as { detail?: unknown; code?: unknown; errors?: FieldErrors }
+    throw new ApiError(
+      response.status,
+      typeof data.detail === 'string' ? data.detail : `Request failed (${response.status})`,
+      typeof data.code === 'string' ? data.code : 'error',
+      data.errors ?? {},
+    )
+  }
   return payload as T
 }
-
-export interface HealthResponse {
-  status: 'ok'
-  routing_configured: boolean
-}
-
-export const getHealth = (signal?: AbortSignal) =>
-  apiRequest<HealthResponse>('/api/health', { signal })

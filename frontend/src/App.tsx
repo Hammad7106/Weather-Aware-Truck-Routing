@@ -1,23 +1,34 @@
+import { CloudSun } from 'lucide-react'
 import { ApiStatus } from './components/ApiStatus'
-import { MapView } from './components/MapView'
+import { MapView } from './features/map/MapView'
+import { PlanPanel } from './features/plan/PlanPanel'
+import { TripForm } from './features/trip/TripForm'
+import { useTripFromUrl } from './features/trip/useTripFromUrl'
 
 export default function App() {
+  useTripFromUrl()
+
   return (
     <div className="flex h-full flex-col md:flex-row">
-      <aside className="z-10 flex max-h-[45%] w-full shrink-0 flex-col border-b border-slate-200 bg-white shadow-lg md:max-h-none md:w-[380px] md:border-r md:border-b-0">
-        <header className="border-b border-slate-200 px-5 py-4">
-          <h1 className="text-lg font-semibold tracking-tight">Weather-Aware Truck Routing</h1>
-          <p className="mt-0.5 text-sm text-slate-500">
-            Compare routes by weather risk, load and travel time.
-          </p>
-          <div className="mt-3">
-            <ApiStatus />
+      <aside className="z-10 flex max-h-[55%] w-full shrink-0 flex-col border-b border-slate-200 bg-white shadow-lg md:max-h-none md:w-[400px] md:border-r md:border-b-0">
+        <header className="flex items-center justify-between gap-3 border-b border-slate-200 px-5 py-3.5">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-600 text-white shadow-sm">
+              <CloudSun className="h-4.5 w-4.5" aria-hidden />
+            </span>
+            <div>
+              <h1 className="text-[15px] leading-tight font-semibold tracking-tight">
+                Weather-Aware Truck Routing
+              </h1>
+              <ApiStatus />
+            </div>
           </div>
         </header>
 
-        <section className="flex-1 overflow-y-auto px-5 py-4 text-sm text-slate-500">
-          Trip planner form and route options will appear here.
-        </section>
+        <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
+          <TripForm />
+          <PlanPanel />
+        </div>
       </aside>
 
       <main className="relative min-h-0 flex-1">

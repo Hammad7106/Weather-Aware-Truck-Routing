@@ -20,3 +20,28 @@ body,
 body {
   @apply bg-slate-100 text-slate-900 antialiased;
 }
+
+/* Load slider: coloured threshold zones on the track, a clean white thumb. */
+.load-slider {
+  @apply h-2 cursor-pointer appearance-none rounded-full;
+}
+.load-slider:focus-visible {
+  @apply outline-none;
+}
+.load-slider::-webkit-slider-thumb {
+  @apply h-5 w-5 appearance-none rounded-full border-2 border-sky-600 bg-white shadow-md transition;
+}
+.load-slider:focus-visible::-webkit-slider-thumb {
+  @apply ring-4 ring-sky-200;
+}
+.load-slider::-moz-range-thumb {
+  @apply h-4 w-4 rounded-full border-2 border-sky-600 bg-white shadow-md;
+}
+
+/* Map right-click menu: drop MapLibre's default popup padding. */
+.map-menu .maplibregl-popup-content {
+  @apply overflow-hidden rounded-lg p-0 shadow-xl;
+}
+.map-menu .maplibregl-popup-tip {
+  @apply hidden;
+}
