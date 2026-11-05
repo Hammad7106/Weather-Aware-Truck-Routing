@@ -10,7 +10,9 @@ import { INITIAL_VIEW, MAP_STYLE_URL } from '../../config'
 import { usePlanner, type PlaceRole } from '../../store/planner'
 import { ROLE_STYLE } from '../trip/roleStyle'
 import { useResolvePoint } from '../trip/useResolvePoint'
+import { useCurrentPlan, useSelectedRouteId } from '../plan/useCurrentPlan'
 import { CameraController } from './CameraController'
+import { ROUTE_HIT_LAYER, RouteLayers } from './RouteLayers'
 import './setupMaplibre'
 import { TripMarkers } from './TripMarkers'
 
@@ -23,8 +25,13 @@ interface MenuPoint {
 export function MapView() {
   const pickTarget = usePlanner((s) => s.pickTarget)
   const setPickTarget = usePlanner((s) => s.setPickTarget)
+  const selectRoute = usePlanner((s) => s.selectRoute)
+  const hoverRoute = usePlanner((s) => s.hoverRoute)
   const resolvePoint = useResolvePoint()
+  const plan = useCurrentPlan().data
+  const selectedId = useSelectedRouteId(plan)
   const [menu, setMenu] = useState<MenuPoint | null>(null)
+  const [overRoute, setOverRoute] = useState(false)
 
   useEffect(() => {
     if (!pickTarget) return
@@ -42,8 +49,24 @@ export function MapView() {
   }
 
   function onClick(event: MapLayerMouseEvent) {
-    if (pickTarget) setFromMap(pickTarget, { lat: event.lngLat.lat, lon: event.lngLat.lng })
-    else setMenu(null)
+    if (pickTarget) {
+      setFromMap(pickTarget, { lat: event.lngLat.lat, lon: event.lngLat.lng })
+      return
+    }
+    setMenu(null)
+    const routeId = event.features?.[0]?.properties?.id as string | undefined
+    if (routeId) selectRoute(routeId)
+  }
+
+  function onMouseMove(event: MapLayerMouseEvent) {
+    const routeId = (event.features?.[0]?.properties?.id as string | undefined) ?? null
+    setOverRoute(routeId !== null)
+    if (usePlanner.getState().hoveredRouteId !== routeId) hoverRoute(routeId)
+  }
+
+  function onMouseLeave() {
+    setOverRoute(false)
+    hoverRoute(null)
   }
 
   function onContextMenu(event: MapLayerMouseEvent) {
@@ -60,13 +83,17 @@ export function MapView() {
         attributionControl={{ compact: true }}
         dragRotate={false}
         pitchWithRotate={false}
-        cursor={pickTarget ? 'crosshair' : undefined}
+        cursor={pickTarget ? 'crosshair' : overRoute ? 'pointer' : undefined}
+        interactiveLayerIds={plan ? [ROUTE_HIT_LAYER] : undefined}
         onClick={onClick}
+        onMouseMove={plan ? onMouseMove : undefined}
+        onMouseLeave={plan ? onMouseLeave : undefined}
         onContextMenu={onContextMenu}
       >
         <NavigationControl position="top-right" showCompass={false} />
         <ScaleControl position="bottom-right" unit="imperial" />
         <CameraController />
+        {plan && selectedId && <RouteLayers plan={plan} selectedId={selectedId} />}
         <TripMarkers />
 
         {menu && (

@@ -22,7 +22,11 @@ a unit test that pins it down.
 - **Vehicle weight for routing:** TomTom's `vehicleWeight` is the _gross_ weight. It is set to
   cargo + **35,000 lb** (a typical empty tractor-trailer), converted to kg, so weight-restricted
   roads are avoided realistically.
-- **Traffic:** `departAt` is sent so TomTom uses historical traffic for the chosen departure time.
+- **Traffic:** for a future departure, `departAt` is sent so TomTom uses predicted traffic for
+  that time. On some trips TomTom then returns fewer alternatives (Seattle → Salt Lake City
+  drops from 3 routes to 1). When that happens, the routes are requested again with current
+  traffic and whichever answer has more routes is used. Three options matter more to this app
+  than the small change in drive time (about 1%).
 - **Route names:** each route is labelled with the two road numbers it uses for the longest
   distance (for example "via I-80 · I-76"), worked out from TomTom's turn-by-turn guidance.
 

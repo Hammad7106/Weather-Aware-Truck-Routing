@@ -90,8 +90,7 @@ class TomTomClient:
         alternatives: int = 2,
     ) -> list[ProviderRoute]:
         gross_kg = round((load_lb + TRUCK_TARE_LB) * POUNDS_TO_KG)
-        now = datetime.now(UTC)
-        params = {
+        params: dict[str, Any] = {
             "travelMode": "truck",
             "vehicleCommercial": "true",
             "vehicleWeight": gross_kg,
@@ -99,20 +98,32 @@ class TomTomClient:
             "instructionsType": "coded",
             "routeRepresentation": "polyline",
             "traffic": "true",
-            # TomTom rejects departure times in the past; "now" covers the last few minutes.
-            "departAt": (
-                depart_at.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
-                if depart_at > now + timedelta(minutes=1)
-                else "now"
-            ),
         }
-        locations = f"{origin.lat},{origin.lon}:{destination.lat},{destination.lon}"
-        data = self._get(f"/routing/1/calculateRoute/{locations}/json", params)
+        path = (
+            f"/routing/1/calculateRoute/"
+            f"{origin.lat},{origin.lon}:{destination.lat},{destination.lon}/json"
+        )
 
-        routes = [_parse_route(r) for r in data.get("routes", [])]
+        # TomTom rejects past departure times, so only future ones are sent.
+        future_departure = depart_at > datetime.now(UTC) + timedelta(minutes=1)
+        departure = {"departAt": depart_at.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")}
+        routes = self._routes(path, params | departure if future_departure else params)
+
+        # With a future departAt, TomTom sometimes returns fewer alternatives (e.g. 1 instead of
+        # 3 for Seattle → Salt Lake City). The brief needs 3 options, so ask again for routes
+        # with current traffic and keep whichever answer offers more choice.
+        if future_departure and len(routes) < alternatives + 1:
+            fallback = self._routes(path, params)
+            if len(fallback) > len(routes):
+                logger.info("TomTom: %d → %d routes without departAt", len(routes), len(fallback))
+                routes = fallback
+
         if not routes:
             raise NoRouteFound("No truck route was found between these places.")
         return routes
+
+    def _routes(self, path: str, params: dict[str, Any]) -> list[ProviderRoute]:
+        return [_parse_route(r) for r in self._get(path, params).get("routes", [])]
 
     # --- Internals ----------------------------------------------------------------------
 

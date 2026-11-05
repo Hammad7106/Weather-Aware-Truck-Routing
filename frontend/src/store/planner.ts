@@ -32,6 +32,12 @@ interface PlannerState {
   submittedTrip: TripRequest | null
   submitAttempted: boolean
   recentPlaces: Place[]
+  /** Route the user picked; null means "the recommended route". */
+  selectedRouteId: string | null
+  /** Route under the pointer on the map or in the list, for linked highlighting. */
+  hoveredRouteId: string | null
+  /** The form collapses to a one-line summary after planning, so results are in view. */
+  formOpen: boolean
 
   setPlace: (role: PlaceRole, place: DraftPlace | null) => void
   swapPlaces: () => void
@@ -42,6 +48,9 @@ interface PlannerState {
   setSubmitAttempted: (attempted: boolean) => void
   applyDraft: (draft: Partial<TripDraft>) => void
   submit: (trip: TripRequest) => void
+  selectRoute: (id: string | null) => void
+  hoverRoute: (id: string | null) => void
+  setFormOpen: (open: boolean) => void
 }
 
 function rememberPlaces(recent: Place[], places: Place[]): Place[] {
@@ -63,6 +72,9 @@ export const usePlanner = create<PlannerState>()((set) => ({
   submittedTrip: null,
   submitAttempted: false,
   recentPlaces: safeStorage.get<Place[]>(RECENT_KEY, []),
+  selectedRouteId: null,
+  hoveredRouteId: null,
+  formOpen: true,
 
   setPlace: (role, place) => set((s) => ({ draft: { ...s.draft, [role]: place } })),
   swapPlaces: () =>
@@ -79,6 +91,17 @@ export const usePlanner = create<PlannerState>()((set) => ({
     set((s) => {
       const recentPlaces = rememberPlaces(s.recentPlaces, [trip.origin, trip.destination])
       safeStorage.set(RECENT_KEY, recentPlaces)
-      return { submittedTrip: trip, submitAttempted: false, pickTarget: null, recentPlaces }
+      return {
+        submittedTrip: trip,
+        submitAttempted: false,
+        pickTarget: null,
+        recentPlaces,
+        selectedRouteId: null,
+        hoveredRouteId: null,
+        formOpen: false,
+      }
     }),
+  selectRoute: (selectedRouteId) => set({ selectedRouteId }),
+  hoverRoute: (hoveredRouteId) => set({ hoveredRouteId }),
+  setFormOpen: (formOpen) => set({ formOpen }),
 }))

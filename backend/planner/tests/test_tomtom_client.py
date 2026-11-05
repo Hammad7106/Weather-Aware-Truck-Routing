@@ -62,13 +62,41 @@ def test_truck_routes_sends_truck_parameters_and_parses_routes():
     assert first.major_roads == ("I-76", "I-80")
 
 
-def test_departure_in_the_past_is_sent_as_now():
+def test_departure_in_the_past_is_not_sent():
     requests: list[httpx.Request] = []
     line = straight_line(DENVER, OMAHA)
-    client(route_handler(requests, [tomtom_route_json(line)])).truck_routes(
+    payload = [tomtom_route_json(line)] * 3
+    client(route_handler(requests, payload)).truck_routes(
         DENVER, OMAHA, depart_at=datetime.now(UTC) - timedelta(minutes=10), load_lb=0
     )
-    assert requests[0].url.params["departAt"] == "now"
+    assert len(requests) == 1
+    assert "departAt" not in requests[0].url.params
+
+
+def test_falls_back_to_current_traffic_when_departat_limits_alternatives():
+    line = straight_line(DENVER, OMAHA)
+    requests: list[httpx.Request] = []
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        count = 1 if "departAt" in request.url.params else 3
+        return httpx.Response(200, json={"routes": [tomtom_route_json(line)] * count})
+
+    routes = client(handle).truck_routes(
+        DENVER, OMAHA, depart_at=datetime.now(UTC) + timedelta(hours=5), load_lb=0
+    )
+
+    assert len(routes) == 3
+    assert ["departAt" in r.url.params for r in requests] == [True, False]
+
+
+def test_no_fallback_when_departat_already_gives_three_routes():
+    requests: list[httpx.Request] = []
+    line = straight_line(DENVER, OMAHA)
+    client(route_handler(requests, [tomtom_route_json(line)] * 3)).truck_routes(
+        DENVER, OMAHA, depart_at=datetime.now(UTC) + timedelta(hours=5), load_lb=0
+    )
+    assert len(requests) == 1
 
 
 def test_empty_route_list_means_no_route():

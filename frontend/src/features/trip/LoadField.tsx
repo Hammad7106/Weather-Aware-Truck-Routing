@@ -134,10 +134,7 @@ export function LoadField({ error }: { error?: string }) {
       </div>
 
       <div
-        className={cn(
-          'mt-2 rounded-md px-2.5 py-2 text-xs',
-          active.length ? 'bg-amber-50 text-amber-900' : 'bg-slate-50 text-slate-600',
-        )}
+        className="mt-2 rounded-md bg-slate-50 px-2.5 py-2 text-xs text-slate-600"
         aria-live="polite"
       >
         {error ? (
@@ -145,15 +142,20 @@ export function LoadField({ error }: { error?: string }) {
         ) : !rules ? (
           'Loading load rules…'
         ) : active.length === 0 ? (
-          `At or below ${thresholds[0]?.load_over_lb.toLocaleString()} lb, wind risk uses the standard thresholds.`
+          `At or below ${thresholds[0]?.load_over_lb.toLocaleString()} lb, wind is rated with the standard thresholds.`
         ) : (
           <>
-            <span className="font-medium">Heavy-load wind rules apply:</span>
+            <span className="font-medium text-slate-700">
+              At this weight, stricter wind limits apply:
+            </span>
             <ul className="mt-0.5 list-disc pl-4">
               {active.map((rule) => (
                 <li key={rule.load_over_lb}>{rule.description}</li>
               ))}
             </ul>
+            <span className="mt-1 block text-slate-500">
+              They only affect stretches where the forecast wind is that strong.
+            </span>
           </>
         )}
       </div>

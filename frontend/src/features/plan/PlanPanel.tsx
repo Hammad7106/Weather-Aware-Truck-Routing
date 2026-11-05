@@ -1,9 +1,13 @@
-import { AlertTriangle, LoaderCircle, RotateCw, Truck } from 'lucide-react'
+import { AlertTriangle, LoaderCircle, RefreshCw, RotateCw } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { ApiError } from '../../api/client'
-import { usePlan } from '../../api/queries'
-import { formatDuration } from '../../lib/time'
+import { useNow } from '../../lib/useNow'
 import { usePlanner } from '../../store/planner'
+import { useSubmitTrip } from '../trip/useSubmitTrip'
+import { sameTrip, toTripRequest, validateDraft } from '../trip/validation'
+import { RecommendationCard } from './RecommendationCard'
+import { RouteCard } from './RouteCard'
+import { useCurrentPlan, useSelectedRouteId } from './useCurrentPlan'
 
 function useElapsedSeconds(running: boolean): number {
   const [elapsed, setElapsed] = useState(0)
@@ -22,18 +26,30 @@ function useElapsedSeconds(running: boolean): number {
   return elapsed
 }
 
+/** True when the form now describes a different (valid) trip than the one on screen. */
+function useFormChanged(): boolean {
+  const draft = usePlanner((s) => s.draft)
+  const submitted = usePlanner((s) => s.submittedTrip)
+  const now = useNow()
+  if (!submitted || Object.keys(validateDraft(draft, now)).length > 0) return false
+  return !sameTrip(toTripRequest(draft), submitted)
+}
+
 /** Loading, error and result states for the submitted trip. */
 export function PlanPanel() {
   const trip = usePlanner((s) => s.submittedTrip)
-  const plan = usePlan(trip)
+  const plan = useCurrentPlan()
+  const selectedId = useSelectedRouteId(plan.data)
   const elapsed = useElapsedSeconds(plan.isFetching)
+  const formChanged = useFormChanged()
+  const submitTrip = useSubmitTrip()
 
   if (!trip) return null
 
   if (plan.isPending || (plan.isFetching && !plan.data)) {
     return (
       <div
-        className="rounded-lg border border-slate-200 bg-white p-4"
+        className="rounded-xl border border-slate-200 bg-white p-4"
         role="status"
         aria-live="polite"
       >
@@ -51,7 +67,7 @@ export function PlanPanel() {
         )}
         <div className="mt-3 space-y-2">
           {[0, 1, 2].map((i) => (
-            <div key={i} className="h-14 animate-pulse rounded-md bg-slate-100" />
+            <div key={i} className="h-24 animate-pulse rounded-lg bg-slate-100" />
           ))}
         </div>
       </div>
@@ -63,7 +79,7 @@ export function PlanPanel() {
     // Field problems are shown on the form itself.
     if (error instanceof ApiError && error.status === 400) return null
     return (
-      <div className="rounded-lg border border-red-200 bg-red-50 p-4" role="alert">
+      <div className="rounded-xl border border-red-200 bg-red-50 p-4" role="alert">
         <div className="flex items-start gap-2">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-600" aria-hidden />
           <div>
@@ -84,33 +100,52 @@ export function PlanPanel() {
     )
   }
 
-  // Interim result list; route cards with risk breakdowns arrive in Batch 5.
-  const routes = [...plan.data.routes].sort((a, b) => a.rank - b.rank)
+  const data = plan.data
+  const routes = [...data.routes].sort((a, b) => a.rank - b.rank)
+
   return (
-    <section aria-label="Route options" className="space-y-2">
-      <h2 className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
-        {routes.length} route {routes.length === 1 ? 'option' : 'options'}
-      </h2>
-      {routes.map((route) => (
-        <div key={route.id} className="rounded-lg border border-slate-200 bg-white p-3">
-          <div className="flex items-center justify-between">
-            <span className="flex items-center gap-1.5 text-sm font-semibold text-slate-900">
-              <Truck className="h-4 w-4 text-slate-400" aria-hidden />
-              {route.name}
-            </span>
-            {route.rank === 1 && (
-              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">
-                Recommended
-              </span>
-            )}
-          </div>
-          <p className="mt-0.5 text-xs text-slate-500">
-            {route.via.length ? `via ${route.via.join(' · ')} · ` : ''}
-            {route.summary.distance_miles.toLocaleString()} mi ·{' '}
-            {formatDuration(route.summary.duration_s)}
-          </p>
+    <section aria-label="Results" className="space-y-3">
+      {formChanged && (
+        <div className="flex items-center justify-between gap-2 rounded-lg bg-sky-50 px-3 py-2 text-xs text-sky-900">
+          You changed the trip. These results are for the previous one.
+          <button
+            type="button"
+            onClick={submitTrip}
+            className="inline-flex shrink-0 items-center gap-1 rounded-md bg-sky-600 px-2 py-1 font-medium text-white hover:bg-sky-700"
+          >
+            <RefreshCw className="h-3 w-3" aria-hidden /> Update
+          </button>
         </div>
-      ))}
+      )}
+
+      <div className={formChanged ? 'space-y-3 opacity-60 transition' : 'space-y-3 transition'}>
+        <RecommendationCard plan={data} />
+
+        <div>
+          <h2 className="mb-2 flex items-baseline justify-between text-xs font-semibold tracking-wide text-slate-500 uppercase">
+            {routes.length} route {routes.length === 1 ? 'option' : 'options'}
+            <span className="font-normal tracking-normal normal-case">
+              {plan.isFetching ? 'Refreshing…' : 'Click a route to inspect it'}
+            </span>
+          </h2>
+          <div role="radiogroup" aria-label="Route options" className="space-y-2">
+            {routes.map((route) => (
+              <RouteCard
+                key={route.id}
+                route={route}
+                recommended={route.id === data.recommendation.route_id}
+                selected={route.id === selectedId}
+              />
+            ))}
+          </div>
+          {routes.length < 3 && (
+            <p className="mt-2 text-xs text-slate-500">
+              The routing service found only {routes.length} distinct{' '}
+              {routes.length === 1 ? 'route' : 'routes'} for this trip.
+            </p>
+          )}
+        </div>
+      </div>
     </section>
   )
 }

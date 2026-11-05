@@ -9,25 +9,17 @@ import { EXAMPLE_TRIPS } from './examples'
 import { IntervalField } from './IntervalField'
 import { LoadField } from './LoadField'
 import { PlaceField } from './PlaceField'
-import { writeTripToUrl } from './urlState'
-import {
-  serverErrorsToFields,
-  toTripRequest,
-  validateDraft,
-  type TripErrors,
-  type TripField,
-} from './validation'
-
-const FIELD_ORDER: TripField[] = ['origin', 'destination', 'departure', 'load', 'interval']
+import { useSubmitTrip } from './useSubmitTrip'
+import { serverErrorsToFields, validateDraft, type TripErrors } from './validation'
 
 export function TripForm() {
   const draft = usePlanner((s) => s.draft)
   const submittedTrip = usePlanner((s) => s.submittedTrip)
   const submitAttempted = usePlanner((s) => s.submitAttempted)
-  const setSubmitAttempted = usePlanner((s) => s.setSubmitAttempted)
   const swapPlaces = usePlanner((s) => s.swapPlaces)
   const applyDraft = usePlanner((s) => s.applyDraft)
-  const submit = usePlanner((s) => s.submit)
+  const submitTrip = useSubmitTrip()
+  const setFormOpen = usePlanner((s) => s.setFormOpen)
   const plan = usePlan(submittedTrip)
   const now = useNow()
 
@@ -40,15 +32,7 @@ export function TripForm() {
 
   function onSubmit(event?: FormEvent) {
     event?.preventDefault()
-    const firstInvalid = FIELD_ORDER.find((field) => clientErrors[field])
-    if (firstInvalid) {
-      setSubmitAttempted(true)
-      document.getElementById(`field-${firstInvalid}`)?.focus()
-      return
-    }
-    const trip = toTripRequest(draft)
-    submit(trip)
-    writeTripToUrl(trip)
+    submitTrip()
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLFormElement>) {
@@ -59,6 +43,20 @@ export function TripForm() {
 
   return (
     <form onSubmit={onSubmit} onKeyDown={onKeyDown} noValidate className="space-y-4">
+      {submittedTrip && (
+        <div className="flex items-center justify-between">
+          <h2 className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+            Edit trip
+          </h2>
+          <button
+            type="button"
+            onClick={() => setFormOpen(false)}
+            className="text-xs font-medium text-sky-700 hover:underline"
+          >
+            Hide
+          </button>
+        </div>
+      )}
       {isEmpty && (
         <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-2.5">
           <p className="flex items-center gap-1.5 text-xs font-medium text-slate-600">

@@ -69,3 +69,17 @@ export function serverErrorsToFields(fieldErrors: FieldErrors): TripErrors {
   }
   return errors
 }
+
+/** Whether two trips would produce the same plan (departure compared to the minute). */
+export function sameTrip(a: TripRequest, b: TripRequest): boolean {
+  const minute = (iso: string) => Math.floor(new Date(iso).getTime() / 60_000)
+  const samePlace = (p: TripRequest['origin'], q: TripRequest['origin']) =>
+    p.lat === q.lat && p.lon === q.lon
+  return (
+    samePlace(a.origin, b.origin) &&
+    samePlace(a.destination, b.destination) &&
+    minute(a.departure_time) === minute(b.departure_time) &&
+    a.load_weight_lb === b.load_weight_lb &&
+    a.checkpoint_interval_miles === b.checkpoint_interval_miles
+  )
+}

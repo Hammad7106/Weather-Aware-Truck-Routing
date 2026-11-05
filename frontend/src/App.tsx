@@ -1,9 +1,25 @@
 import { CloudSun } from 'lucide-react'
+import { ApiError } from './api/client'
 import { ApiStatus } from './components/ApiStatus'
 import { MapView } from './features/map/MapView'
 import { PlanPanel } from './features/plan/PlanPanel'
+import { useCurrentPlan } from './features/plan/useCurrentPlan'
 import { TripForm } from './features/trip/TripForm'
+import { TripSummary } from './features/trip/TripSummary'
 import { useTripFromUrl } from './features/trip/useTripFromUrl'
+import { usePlanner } from './store/planner'
+
+/** The full form, or a one-line summary once a trip has been planned. */
+function TripSection() {
+  const trip = usePlanner((s) => s.submittedTrip)
+  const formOpen = usePlanner((s) => s.formOpen)
+  const plan = useCurrentPlan()
+  // Invalid input is reported on the form fields, so the form must be visible then.
+  const hasFieldErrors = plan.error instanceof ApiError && plan.error.status === 400
+
+  if (!trip || formOpen || hasFieldErrors) return <TripForm />
+  return <TripSummary trip={trip} />
+}
 
 export default function App() {
   useTripFromUrl()
@@ -26,7 +42,7 @@ export default function App() {
         </header>
 
         <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
-          <TripForm />
+          <TripSection />
           <PlanPanel />
         </div>
       </aside>
