@@ -128,27 +128,6 @@ def test_at_uses_nearest_hour_and_handles_gaps():
     assert gappy.at(START + timedelta(hours=1)) is not None
 
 
-def test_timezone_lookup_is_cached_per_grid_cell():
-    requests: list[httpx.Request] = []
-
-    def handle(request):
-        requests.append(request)
-        return httpx.Response(200, json={"timezone": "America/Denver", "latitude": 39.75})
-
-    client = make_client(handle)
-    assert client.timezone(LatLon(39.741, -104.99)) == "America/Denver"
-    assert client.timezone(LatLon(39.742, -104.991)) == "America/Denver"
-
-    assert len(requests) == 1
-    assert requests[0].url.params["timezone"] == "auto"
-    assert "hourly" not in requests[0].url.params
-
-
-def test_timezone_rejects_non_iana_answers():
-    client = make_client(lambda r: httpx.Response(200, json={"timezone": "GMT"}))
-    assert client.timezone(LatLon(0, -30)) is None
-
-
 def test_requests_with_different_times_share_one_window():
     plan = forecast_window(START, START + timedelta(hours=9))
     later = forecast_window(START + timedelta(hours=6), START + timedelta(hours=60))

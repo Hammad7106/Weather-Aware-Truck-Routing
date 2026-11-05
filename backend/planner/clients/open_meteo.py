@@ -32,7 +32,6 @@ GRID_DEGREES = 0.05
 # Fetch whole UTC days in fixed spans so different requests reuse the same cache entries. Six
 # days covers a trip, 48 h of departure options and the 48 h heatmap from the departure day.
 WINDOW_DAYS = 6
-TIMEZONE_CACHE_SECONDS = 30 * 24 * 60 * 60
 HOUR = 3600
 HOURLY_VARIABLES = (
     "wind_speed_10m",
@@ -152,36 +151,6 @@ class OpenMeteoClient:
 
         return [found.get(cell) for cell in cells]
 
-    def timezone(self, point: LatLon) -> str | None:
-        """IANA time zone of a point (e.g. "America/Denver"), or None if unknown.
-
-        Time zones change rarely, so lookups are cached for 30 days per grid cell.
-        """
-        cell = snap(point)
-        key = f"om:tz:v1:{cell.lat:.2f},{cell.lon:.2f}"
-        cached = self._cache.get(key)
-        if cached is not None:
-            return cached or None
-        try:
-            response = self._http.get(
-                self._url,
-                params={
-                    "latitude": f"{cell.lat:.2f}",
-                    "longitude": f"{cell.lon:.2f}",
-                    "timezone": "auto",
-                    "forecast_days": 1,
-                    **self._auth,
-                },
-            )
-        except httpx.HTTPError as exc:
-            raise UpstreamError(SERVICE, "the weather service could not be reached") from exc
-        if response.status_code != 200:
-            raise UpstreamError(SERVICE, _error_reason(response) or "time zone lookup failed")
-        zone = response.json().get("timezone")
-        name = zone if isinstance(zone, str) and "/" in zone else ""
-        self._cache.set(key, name, TIMEZONE_CACHE_SECONDS)
-        return name or None
-
     @staticmethod
     def _cache_key(cell: LatLon, window: tuple[date, int]) -> str:
         return f"om:v2:{cell.lat:.2f},{cell.lon:.2f}:{window[0]:%Y%m%d}:{window[1]}"
@@ -230,7 +199,9 @@ def _parse_hourly(item: dict[str, Any]) -> HourlyForecast:
     try:
         hourly = item["hourly"]
         times = hourly["time"]
-        rain = [_add(r, s) for r, s in zip(hourly["rain"], hourly["showers"], strict=True)]
+        rain = [
+            add_precipitation(r, s) for r, s in zip(hourly["rain"], hourly["showers"], strict=True)
+        ]
         return HourlyForecast(
             start_epoch=int(times[0]) if times else 0,
             wind_mph=tuple(hourly["wind_speed_10m"]),
@@ -244,7 +215,7 @@ def _parse_hourly(item: dict[str, Any]) -> HourlyForecast:
         raise UpstreamError(SERVICE, "returned a forecast in an unexpected format") from exc
 
 
-def _add(a: float | None, b: float | None) -> float | None:
+def add_precipitation(a: float | None, b: float | None) -> float | None:
     """Sum two precipitation values. Rounded to the API's 3-decimal precision so float noise
     (0.07 + 0.03 = 0.0999…) cannot drop a value below a risk threshold."""
     if a is None and b is None:

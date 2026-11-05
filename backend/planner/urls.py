@@ -10,5 +10,4 @@ urlpatterns = [
     path("corridor-weather", views.CorridorWeatherView.as_view(), name="corridor-weather"),
     path("geocode", views.GeocodeView.as_view(), name="geocode"),
     path("reverse-geocode", views.ReverseGeocodeView.as_view(), name="reverse-geocode"),
-    path("timezone", views.TimezoneView.as_view(), name="timezone"),
 ]

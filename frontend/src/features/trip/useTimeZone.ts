@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { getTimeZone } from '../../api/endpoints'
+import { fetchTimeZone } from '../../api/openMeteo'
 import { isValidTimeZone } from '../../lib/time'
 import { usePlanner } from '../../store/planner'
 
@@ -12,7 +12,7 @@ interface Point {
 export function usePlaceTimeZone(place: Point | null | undefined): string | undefined {
   const { data } = useQuery({
     queryKey: ['timezone', place?.lat.toFixed(2), place?.lon.toFixed(2)],
-    queryFn: ({ signal }) => getTimeZone(place!.lat, place!.lon, signal),
+    queryFn: ({ signal }) => fetchTimeZone(place!.lat, place!.lon, signal),
     enabled: place != null,
     // A place's time zone does not change while the app is open.
     staleTime: Infinity,

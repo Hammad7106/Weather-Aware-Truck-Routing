@@ -1,5 +1,6 @@
 import { keepPreviousData, queryOptions, useQuery } from '@tanstack/react-query'
 import { geocode, getHealth, getRiskRules, planTrip, reverseGeocode } from './endpoints'
+import { usePlanProgress } from '../store/planProgress'
 import type { TripRequest } from './types'
 
 const HOUR = 60 * 60 * 1000
@@ -40,7 +41,7 @@ export function useGeocode(query: string) {
 export function usePlan(trip: TripRequest | null) {
   return useQuery({
     queryKey: ['plan', trip],
-    queryFn: ({ signal }) => planTrip(trip!, signal),
+    queryFn: ({ signal }) => planTrip(trip!, signal, usePlanProgress.getState().setStage),
     enabled: trip !== null,
     // Forecasts move slowly; re-opening the same trip within 5 minutes is instant.
     staleTime: 5 * 60 * 1000,

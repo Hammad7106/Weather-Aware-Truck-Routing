@@ -8,6 +8,7 @@ All environment-specific values come from environment variables (or a local
 from pathlib import Path
 
 import environ
+from django.core.exceptions import ImproperlyConfigured
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -119,6 +120,15 @@ TOMTOM_BASE_URL = env("TOMTOM_BASE_URL", default="https://api.tomtom.com")
 # OPEN_METEO_BASE_URL=https://customer-api.open-meteo.com/v1/forecast.
 OPEN_METEO_BASE_URL = env("OPEN_METEO_BASE_URL", default="https://api.open-meteo.com/v1/forecast")
 OPEN_METEO_API_KEY = env("OPEN_METEO_API_KEY", default="")
+# Where forecasts come from. "client": each visitor's browser fetches them with its own
+# Open-Meteo quota and sends them along (free hosting shares outgoing IPs, so a server's free
+# quota can be used up by other apps). "server": the API fetches them itself (local scripts,
+# or production with OPEN_METEO_API_KEY).
+WEATHER_SOURCE = env("WEATHER_SOURCE", default="client")
+if WEATHER_SOURCE not in ("client", "server"):
+    raise ImproperlyConfigured("WEATHER_SOURCE must be 'client' or 'server'.")
+# Requests may carry browser-fetched forecasts (a few hundred KB).
+DATA_UPLOAD_MAX_MEMORY_SIZE = 8 * 1024 * 1024
 HTTP_TIMEOUT_SECONDS = env.float("HTTP_TIMEOUT_SECONDS", default=15.0)
 
 # --- Production hardening ---------------------------------------------------

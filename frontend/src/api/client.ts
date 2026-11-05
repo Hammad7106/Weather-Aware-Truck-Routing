@@ -8,13 +8,22 @@ export class ApiError extends Error {
   readonly status: number
   readonly code: string
   readonly fieldErrors: FieldErrors
+  /** The full response body, for errors that carry extra data (e.g. weather_request). */
+  readonly body: unknown
 
-  constructor(status: number, message: string, code = 'error', fieldErrors: FieldErrors = {}) {
+  constructor(
+    status: number,
+    message: string,
+    code = 'error',
+    fieldErrors: FieldErrors = {},
+    body: unknown = null,
+  ) {
     super(message)
     this.name = 'ApiError'
     this.status = status
     this.code = code
     this.fieldErrors = fieldErrors
+    this.body = body
   }
 
   /** Worth retrying: network failures and upstream (5xx) errors, but not missing config. */
@@ -60,6 +69,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
       typeof data.detail === 'string' ? data.detail : `Request failed (${response.status})`,
       typeof data.code === 'string' ? data.code : 'error',
       data.errors ?? {},
+      payload,
     )
   }
   return payload as T

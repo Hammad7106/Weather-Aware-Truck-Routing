@@ -34,6 +34,22 @@ class NoRouteFound(PlannerError):
     code = "no_route"
 
 
+class WeatherRequired(PlannerError):
+    """The caller must supply forecasts for these places and hours.
+
+    Used when weather is fetched by the browser (WEATHER_SOURCE=client): the response tells the
+    client exactly which grid cells, hours and variables to fetch from Open-Meteo, and the client
+    repeats the request with them attached.
+    """
+
+    status_code = 409
+    code = "weather_required"
+
+    def __init__(self, weather_request: dict) -> None:
+        super().__init__("Forecasts are needed for these places and hours.")
+        self.weather_request = weather_request
+
+
 class ConfigurationError(PlannerError):
     """The server is missing configuration, such as an API key."""
 
@@ -43,6 +59,11 @@ class ConfigurationError(PlannerError):
 
 def exception_handler(exc: Exception, context: dict) -> Response | None:
     """Every error response has the same shape: {"detail", "code"} plus "errors" for bad input."""
+    if isinstance(exc, WeatherRequired):
+        return Response(
+            {"detail": exc.message, "code": exc.code, "weather_request": exc.weather_request},
+            status=exc.status_code,
+        )
     if isinstance(exc, PlannerError):
         return Response({"detail": exc.message, "code": exc.code}, status=exc.status_code)
 

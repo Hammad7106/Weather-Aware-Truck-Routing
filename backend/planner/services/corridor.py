@@ -15,7 +15,8 @@ from .ports import WeatherProvider
 
 HOURS = 48
 BUFFER_MILES = 40.0
-MAX_POINTS = 300
+# Each grid point is one Open-Meteo call on the visitor's free quota (600 per minute).
+MAX_POINTS = 200
 MIN_SPACING_MILES = 6.0
 _PATH_SAMPLE_MILES = 5.0
 

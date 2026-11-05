@@ -80,19 +80,22 @@ flowchart LR
   subgraph Browser["Browser · React 19 + MapLibre GL (Vercel)"]
     UI["Trip form and results"] --> Q["TanStack Query cache"]
     MAP["WebGL map: routes, checkpoints, heatmap"]
+    W["Weather fetcher (visitor's own quota)"]
   end
   Q -- "JSON over HTTPS" --> V
+  W -- "hourly forecasts, time zones" --> OM
   subgraph API["Django REST API (Render)"]
     V["Views: validate → call service → present"] --> S["Services: plan, corridor, places"]
     S --> D["Domain: risk rules, checkpoints, ranking (pure, no I/O)"]
     S --> C["API clients"]
   end
   C -- "truck routes, address search" --> TT[("TomTom")]
-  C -- "hourly forecast, time zones" --> OM[("Open-Meteo")]
-  C <--> K[("Cache: weather 30 min, places 24 h")]
+  C -. "forecasts (WEATHER_SOURCE=server only)" .-> OM[("Open-Meteo")]
+  C <--> K[("Cache: routes 10 min, places 24 h")]
 ```
 
-**Planning a trip** (`POST /api/plan`) makes one routing call and one batched weather call:
+**Planning a trip** (`POST /api/plan`) makes one routing call; the browser fetches the weather
+the API asks for, and the API rates and ranks:
 
 ```mermaid
 sequenceDiagram
@@ -101,15 +104,25 @@ sequenceDiagram
   participant T as TomTom
   participant O as Open-Meteo
   B->>A: POST /api/plan (origin, destination, departure, load, spacing)
-  A->>T: truck routes, up to 3, with turn-by-turn timing
+  A->>T: truck routes, up to 3, with turn-by-turn timing (cached 10 min)
   A->>A: place checkpoints, compute each ETA
-  A->>O: one batched hourly forecast for every checkpoint
+  A-->>B: 409 weather_required: these grid cells, these hours, these variables
+  B->>O: batched hourly forecasts (the visitor's own free quota)
+  B->>A: POST /api/plan again, with the forecasts attached
   A->>A: rate each checkpoint, summarize, rank, explain
   A-->>B: routes, checkpoints, recommendation and reasons
-  B->>A: POST /api/corridor-weather (after the routes are on screen)
-  A->>O: one batched forecast for the corridor grid, 49 hours
-  A-->>B: heatmap data for every slider position
+  Note over B,A: Departure options reuse the cached routes and forecasts. The heatmap follows the same exchange for its grid.
 ```
+
+**Why the browser fetches the weather.** Open-Meteo's free tier is limited per IP address
+(600 locations per minute, 10,000 per day), and free hosting such as Render sends every app's
+traffic through a few shared addresses. On the hosted API the daily quota was already used up
+by other apps before this one made a request. So the API answers `409 weather_required` with
+exactly the cells and hours it needs; the browser fetches them with the visitor's own quota and
+repeats the request. Every rule, the ranking and all tests stay on the server: only the source
+of the forecast changes. With a paid key, `WEATHER_SOURCE=server` makes the API fetch the
+weather itself and the exchange disappears. (The 409 is part of the exchange; browsers log it in
+the console as a failed request.)
 
 ### Backend (`backend/planner/`)
 
@@ -120,11 +133,10 @@ sequenceDiagram
 | Services | `services/plan.py`, `corridor.py`, `places.py`             | Use cases that combine clients and domain logic, behind small interfaces (`ports.py`). |
 | HTTP     | `views.py`, `serializers.py`, `presenters.py`, `errors.py` | Input validation, JSON shapes and one error format (`{detail, code, errors}`).         |
 
-Weather lookups are snapped to a 0.05° grid, de-duplicated, cached for 30 minutes and fetched
-in parallel batches of up to 100 locations. Open-Meteo's free tier counts each location as a
-call (5,000 per hour), so every cell is fetched for the same fixed six-day window: a plan, its
-departure options and its heatmap share cache entries instead of downloading the same places
-again. Routes are simplified (Douglas–Peucker, ~30 m)
+Weather is looked up per 0.05° grid cell, de-duplicated and fetched in parallel batches of up
+to 100 locations. The plan asks for 48 extra hours so the browser's cache already covers the
+departure options, which then cost no further weather calls; a trip uses roughly 250–300 of the
+visitor's 600 locations per minute. Routes are simplified (Douglas–Peucker, ~30 m)
 before they are sent, so a 1,000-mile plan with three routes is about 50 KB gzipped.
 
 ### Frontend (`frontend/src/`)
@@ -159,8 +171,8 @@ before they are sent, so a 1,000-mile plan with three routes is about 50 KB gzip
 | Map                 | MapLibre GL via `react-map-gl` (WebGL), OpenFreeMap vector tiles (no key) |
 | Backend             | Django 5.2, Django REST Framework, httpx                                  |
 | Routing / geocoding | TomTom Routing (truck mode) and Search APIs                               |
-| Weather, time zones | Open-Meteo hourly forecast (free, no key)                                 |
-| Tests               | pytest (142 tests), Vitest (92 tests); both run in GitHub Actions CI      |
+| Weather, time zones | Open-Meteo hourly forecast (free, no key), fetched by the browser         |
+| Tests               | pytest (152 tests), Vitest (99 tests); both run in GitHub Actions CI      |
 | Hosting             | Vercel (frontend), Render (API)                                           |
 
 ## Local development
@@ -214,7 +226,8 @@ npm run lint && npm run format:check && npm test && npm run build
 | `PLAN_THROTTLE_RATE`          | –        | Rate limit for plan and corridor requests (default `20/min`)        |
 | `GEOCODE_THROTTLE_RATE`       | –        | Rate limit for search and time zone requests (default `90/min`)     |
 | `LOG_LEVEL`                   | –        | Default `INFO`                                                      |
-| `OPEN_METEO_API_KEY`          | –        | Open-Meteo commercial key (higher limits than the free tier)        |
+| `WEATHER_SOURCE`              | –        | `client` (default: the browser fetches forecasts) or `server`       |
+| `OPEN_METEO_API_KEY`          | –        | Open-Meteo commercial key, used with `WEATHER_SOURCE=server`        |
 | `OPEN_METEO_BASE_URL`         | –        | Set to `https://customer-api.open-meteo.com/v1/forecast` with a key |
 
 **Frontend** (`frontend/.env`)
@@ -228,7 +241,9 @@ npm run lint && npm run format:check && npm test && npm run build
 
 All endpoints are under `/api`. Errors always have the shape
 `{"detail": "...", "code": "...", "errors": {field: [messages]}}` (`errors` only for invalid
-input). Codes: `invalid` (400), `no_route` (422), `upstream_error` (502), `not_configured` (503).
+input). Codes: `invalid` (400), `weather_required` (409, see below), `no_route` (422),
+`upstream_error` (502), `not_configured` (503). `POST /plan`, `/departure-options` and
+`/corridor-weather` accept an optional `weather` field with the forecasts the API asked for.
 
 | Method | Path                         | Purpose                                                        |
 | ------ | ---------------------------- | -------------------------------------------------------------- |
@@ -238,7 +253,6 @@ input). Codes: `invalid` (400), `no_route` (422), `upstream_error` (502), `not_c
 | POST   | `/corridor-weather`          | Heatmap grid with 0–48 h of risk, wind, rain and snow          |
 | GET    | `/geocode?q=`                | Address autocomplete (US, Canada, Mexico)                      |
 | GET    | `/reverse-geocode?lat=&lon=` | Address of a point picked on the map                           |
-| GET    | `/timezone?lat=&lon=`        | IANA time zone of a point, e.g. `America/Edmonton`             |
 | GET    | `/risk-rules`                | The thresholds and load rules, so the UI never hard-codes them |
 
 <details>
@@ -348,15 +362,16 @@ Risk levels are numbers: 0 Low, 1 Moderate, 2 High, 3 Severe, 4 No Travel, `null
 
 ## Testing
 
-- **Backend (pytest, 142 tests):** every threshold edge, each load rule, ranking ties and
+- **Backend (pytest, 152 tests):** every threshold edge, each load rule, ranking ties and
   rounding, checkpoint placement and ETA interpolation, both API clients against recorded
   responses (`httpx.MockTransport`, no network), the plan and corridor services with fake
-  providers (including a storm that clears, for departure options), and every endpoint
-  including errors. One test checks that the TomTom key never
+  providers (including a storm that clears, for departure options), the browser-weather
+  exchange end to end, and every endpoint including errors. One test checks that the TomTom key never
   appears in logs.
-- **Frontend (Vitest, 92 tests):** time-zone conversion (including DST), truck positioning,
+- **Frontend (Vitest, 99 tests):** time-zone conversion (including DST), truck positioning,
   heatmap weights and colour scales, a numerical check of the heatmap calibration, threshold
-  ranges, recommendation and departure wording, URL encoding and form validation.
+  ranges, recommendation and departure wording, URL encoding, form validation, and the
+  browser weather exchange (409 → fetch → retry, cache reuse, quota errors).
 
 ## Deployment
 
@@ -398,7 +413,8 @@ frontend's URL for CORS. Both hosts deploy from GitHub, so push your commits fir
 - **North America only** for address search; routing and weather would work elsewhere.
 - **Departure options reuse the routes and drive times** of the chosen departure; only the
   weather timing changes (traffic at other hours is not re-queried).
-- **Open-Meteo free tier:** 5,000 location lookups per hour per server. A long trip at 10-mile
-  spacing uses a few hundred; for heavy use set `OPEN_METEO_API_KEY`.
+- **Weather quota per visitor:** each visitor's browser uses its own free Open-Meteo quota
+  (600 locations per minute, 10,000 per day). Planning several long trips within one minute can
+  briefly hit the per-minute limit; the app says so and offers a retry.
 - **In-memory cache** by default: each server process has its own. Set `CACHE_URL` to Redis to
   share it.

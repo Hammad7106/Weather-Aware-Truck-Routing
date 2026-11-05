@@ -21,13 +21,15 @@ from .serializers import (
     MAX_DEPARTURE_AHEAD,
     CorridorSerializer,
     GeocodeQuerySerializer,
-    PointQuerySerializer,
     ReverseGeocodeQuerySerializer,
     TripSerializer,
 )
 from .services.corridor import CorridorService
 from .services.places import PlaceService
-from .services.plan import PlanService, TripRequest
+from .services.plan import DEPARTURE_OFFSETS_HOURS, PlanService, TripRequest
+from .services.ports import WeatherProvider
+from .services.provided_weather import PLAN_VARIABLES, RISK_VARIABLES, ProvidedWeather
+from .services.routing_cache import CachedRouting
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +37,13 @@ logger = logging.getLogger(__name__)
 @api_view(["GET"])
 def health(request: Request) -> Response:
     """Liveness check used by the hosting platform and the frontend."""
-    return Response({"status": "ok", "routing_configured": bool(settings.TOMTOM_API_KEY)})
+    return Response(
+        {
+            "status": "ok",
+            "routing_configured": bool(settings.TOMTOM_API_KEY),
+            "weather_source": settings.WEATHER_SOURCE,
+        }
+    )
 
 
 @api_view(["GET"])
@@ -49,6 +57,17 @@ def risk_rules(request: Request) -> Response:
 def _place(data: dict) -> Place:
     point = LatLon(data["lat"], data["lon"])
     return Place(label=data["label"] or f"{point.lat:.4f}, {point.lon:.4f}", point=point)
+
+
+def _weather(data: dict, variables: tuple[str, ...], extra_hours: int = 0) -> WeatherProvider:
+    """Where forecasts come from: the visitor's browser (default) or the server itself."""
+    if settings.WEATHER_SOURCE == "server":
+        return providers.weather_client()
+    return ProvidedWeather(data.get("weather") or {}, variables, extra_hours)
+
+
+def _routing() -> CachedRouting:
+    return CachedRouting(providers.routing_client(), cache)
 
 
 def _trip(data: dict) -> TripRequest:
@@ -72,7 +91,10 @@ class PlanView(APIView):
         trip = _trip(serializer.validated_data)
 
         started = time.perf_counter()
-        plan = PlanService(providers.routing_client(), providers.weather_client()).plan(trip)
+        data = serializer.validated_data
+        # Ask for the departure-options window too, so that request reuses these forecasts.
+        weather = _weather(data, PLAN_VARIABLES, extra_hours=max(DEPARTURE_OFFSETS_HOURS))
+        plan = PlanService(_routing(), weather).plan(trip)
         logger.info(
             "Planned %d routes, %d checkpoints in %.0f ms",
             len(plan.routes),
@@ -92,9 +114,10 @@ class DepartureOptionsView(APIView):
         serializer.is_valid(raise_exception=True)
         trip = _trip(serializer.validated_data)
 
-        result = PlanService(
-            providers.routing_client(), providers.weather_client()
-        ).departure_options(trip, latest_departure=timezone.now() + MAX_DEPARTURE_AHEAD)
+        weather = _weather(serializer.validated_data, RISK_VARIABLES)
+        result = PlanService(_routing(), weather).departure_options(
+            trip, latest_departure=timezone.now() + MAX_DEPARTURE_AHEAD
+        )
         return Response(presenters.departure_options(result))
 
 
@@ -109,7 +132,7 @@ class CorridorWeatherView(APIView):
         data = serializer.validated_data
 
         started = time.perf_counter()
-        result = CorridorService(providers.weather_client()).corridor_weather(
+        result = CorridorService(_weather(data, RISK_VARIABLES)).corridor_weather(
             data["paths"], data["departure_time"], data["load_weight_lb"]
         )
         logger.info(
@@ -147,17 +170,3 @@ class ReverseGeocodeView(APIView):
 
         place = PlaceService(providers.routing_client(), cache).reverse(point)
         return Response({"result": presenters.place(place)})
-
-
-class TimezoneView(APIView):
-    """IANA time zone of a point, so times can be shown in the trip's local time."""
-
-    throttle_scope = "geocode"
-
-    def get(self, request: Request) -> Response:
-        serializer = PointQuerySerializer(data=request.query_params)
-        serializer.is_valid(raise_exception=True)
-        point = LatLon(serializer.validated_data["lat"], serializer.validated_data["lon"])
-        response = Response({"timezone": providers.weather_client().timezone(point)})
-        patch_cache_control(response, public=True, max_age=24 * 60 * 60)
-        return response

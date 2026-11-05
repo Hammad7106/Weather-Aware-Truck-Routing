@@ -1,7 +1,9 @@
-import { AlertTriangle, LoaderCircle, RefreshCw, RotateCw } from 'lucide-react'
+import { AlertTriangle, Check, LoaderCircle, RefreshCw, RotateCw } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { ApiError } from '../../api/client'
+import { cn } from '../../lib/cn'
 import { useNow } from '../../lib/useNow'
+import { usePlanProgress } from '../../store/planProgress'
 import { usePlanner } from '../../store/planner'
 import { useSubmitTrip } from '../trip/useSubmitTrip'
 import { sameTrip, toTripRequest, validateDraft } from '../trip/validation'
@@ -59,9 +61,7 @@ export function PlanPanel() {
           <LoaderCircle className="h-4 w-4 animate-spin text-sky-600" aria-hidden />
           Planning your trip… <span className="text-slate-400 tabular-nums">{elapsed}s</span>
         </div>
-        <p className="mt-1 text-xs text-slate-500">
-          Finding truck routes and checking the forecast at every checkpoint.
-        </p>
+        <PlanSteps />
         {elapsed >= 8 && (
           <p className="mt-2 text-xs text-amber-700">
             The server may be waking up after being idle. This can take up to a minute.
@@ -89,7 +89,7 @@ export function PlanPanel() {
             <p className="mt-0.5 text-xs text-red-800">{error.message}</p>
           </div>
         </div>
-        {!(error instanceof ApiError) || error.isTransient ? (
+        {!(error instanceof ApiError) || error.isTransient || error.code.startsWith('weather_') ? (
           <button
             type="button"
             onClick={() => void plan.refetch()}
@@ -156,5 +156,47 @@ export function PlanPanel() {
         </div>
       </div>
     </section>
+  )
+}
+
+const STEPS = [
+  { stage: 'routes', label: 'Finding truck routes' },
+  { stage: 'weather', label: 'Checking the forecast at every checkpoint' },
+  { stage: 'rating', label: 'Rating the routes' },
+] as const
+
+/** The steps of planning, with the current one highlighted. */
+function PlanSteps() {
+  const stage = usePlanProgress((s) => s.stage)
+  const current = STEPS.findIndex((step) => step.stage === stage)
+  return (
+    <ol className="mt-2 space-y-1 text-xs">
+      {STEPS.map((step, i) => (
+        <li
+          key={step.stage}
+          className={cn(
+            'flex items-center gap-1.5',
+            i < current
+              ? 'text-emerald-700'
+              : i === current
+                ? 'font-medium text-slate-800'
+                : 'text-slate-400',
+          )}
+        >
+          {i < current ? (
+            <Check className="h-3.5 w-3.5" aria-hidden />
+          ) : (
+            <span
+              className={cn(
+                'mx-1 h-1.5 w-1.5 rounded-full',
+                i === current ? 'bg-sky-600' : 'bg-slate-300',
+              )}
+              aria-hidden
+            />
+          )}
+          {step.label}
+        </li>
+      ))}
+    </ol>
   )
 }

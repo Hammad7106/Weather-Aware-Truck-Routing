@@ -57,10 +57,19 @@ a unit test that pins it down.
   usually written. Gusts are shown next to it in the UI but do not change the level.
 - **Lookups:** checkpoint coordinates are rounded to 0.05° (about 3.5 miles, close to the
   weather model's own grid spacing), de-duplicated, and fetched in **batched multi-location
-  requests**. Results are cached for 30 minutes. Every cell is fetched for the same window
-  (six whole UTC days from the departure day), because Open-Meteo's free tier counts each
-  location as one call: the plan, its departure options and its heatmap then share one lookup
-  per cell instead of three.
+  requests**.
+- **Who fetches the forecast:** the **visitor's browser**. Open-Meteo's free tier is limited
+  per IP address, and free hosting shares outgoing addresses between many apps, so the hosted
+  API found its daily quota used up by other apps. The API therefore answers
+  `409 weather_required` with exactly the cells, hours and variables it needs; the browser
+  fetches them with the visitor's own quota and repeats the request. All rules still run on the
+  server. Routes are cached for 10 minutes so the repeated request sees the same roads. The plan
+  asks for 48 extra hours so departure options reuse the same forecasts. With a paid key,
+  `WEATHER_SOURCE=server` makes the API fetch the weather itself.
+- **Trusting browser-supplied weather:** the API validates the shape and size of the forecasts
+  but cannot prove they are genuine. That is acceptable here, since a visitor could only
+  mislead their own result; a shared or safety-critical system would fetch on the server with
+  a paid key.
 - **Missing data:** if a checkpoint ETA is outside the forecast or the provider returns no value,
   the checkpoint is marked _"No forecast"_ and is not counted as Low. The route summary shows how
   many miles had no data.
