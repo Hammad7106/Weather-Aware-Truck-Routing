@@ -124,3 +124,26 @@ class FakeRouting:
     def truck_routes(self, origin, destination, *, depart_at, load_lb):
         self.calls.append({"origin": origin, "destination": destination, "load_lb": load_lb})
         return self.routes
+
+
+class TimedWeather:
+    """Weather provider whose conditions depend on the hour since the requested start."""
+
+    def __init__(self, conditions_at_hour: Callable[[int], dict[str, float]], hours: int = 200):
+        self.conditions_at_hour = conditions_at_hour
+        self.hours = hours
+        self.calls = 0
+
+    def forecasts(self, points, start, end):
+        self.calls += 1
+        hourly = [self.conditions_at_hour(h) for h in range(self.hours)]
+        series = HourlyForecast(
+            start_epoch=int(start.timestamp()),
+            wind_mph=tuple(c.get("wind", 5.0) for c in hourly),
+            gust_mph=tuple(c.get("wind", 5.0) * 1.5 for c in hourly),
+            rain_in=tuple(c.get("rain", 0.0) for c in hourly),
+            snow_in=tuple(c.get("snow", 0.0) for c in hourly),
+            temperature_f=(30.0,) * self.hours,
+            weather_code=(71,) * self.hours,
+        )
+        return [series] * len(points)

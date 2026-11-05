@@ -111,7 +111,10 @@ REST_FRAMEWORK = {
 
 TOMTOM_API_KEY = env("TOMTOM_API_KEY", default="")
 TOMTOM_BASE_URL = env("TOMTOM_BASE_URL", default="https://api.tomtom.com")
+# Free tier by default. For production volume set OPEN_METEO_API_KEY and
+# OPEN_METEO_BASE_URL=https://customer-api.open-meteo.com/v1/forecast.
 OPEN_METEO_BASE_URL = env("OPEN_METEO_BASE_URL", default="https://api.open-meteo.com/v1/forecast")
+OPEN_METEO_API_KEY = env("OPEN_METEO_API_KEY", default="")
 HTTP_TIMEOUT_SECONDS = env.float("HTTP_TIMEOUT_SECONDS", default=15.0)
 
 # --- Production hardening ---------------------------------------------------

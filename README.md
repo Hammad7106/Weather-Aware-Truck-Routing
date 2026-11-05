@@ -26,7 +26,13 @@ wind. The popup shows a checkpoint raised from High to Severe by the load rule.<
   timeline, all linked to each other.
 - **A corridor weather heatmap** with a **0–48 h forecast slider**, playback, a Risk / Wind /
   Rain / Snow toggle, and truck markers showing where each route would be at that hour.
-- **Shareable trips:** every planned trip has a URL that re-plans it when opened.
+- **Best time to leave:** the same routes re-rated for departures over the next 48 hours, with
+  a suggestion such as "Leave at 6:00 AM (+9 h) for 0 Severe miles instead of 25", one click to
+  apply.
+- **Follow the truck:** drive the selected route in about 16 seconds. The heatmap follows the
+  truck's clock and the checkpoint it is passing lights up on the map, chart and timeline.
+- **Shareable trips:** every planned trip has a URL that re-plans it when opened, with a
+  **Copy link** button.
 - **Works on phones:** the panel becomes a bottom sheet over a full-screen map.
 
 <p align="center">
@@ -115,7 +121,10 @@ sequenceDiagram
 | HTTP     | `views.py`, `serializers.py`, `presenters.py`, `errors.py` | Input validation, JSON shapes and one error format (`{detail, code, errors}`).         |
 
 Weather lookups are snapped to a 0.05° grid, de-duplicated, cached for 30 minutes and fetched
-in parallel batches of up to 100 locations. Routes are simplified (Douglas–Peucker, ~30 m)
+in parallel batches of up to 100 locations. Open-Meteo's free tier counts each location as a
+call (5,000 per hour), so every cell is fetched for the same fixed six-day window: a plan, its
+departure options and its heatmap share cache entries instead of downloading the same places
+again. Routes are simplified (Douglas–Peucker, ~30 m)
 before they are sent, so a 1,000-mile plan with three routes is about 50 KB gzipped.
 
 ### Frontend (`frontend/src/`)
@@ -151,7 +160,7 @@ before they are sent, so a 1,000-mile plan with three routes is about 50 KB gzip
 | Backend             | Django 5.2, Django REST Framework, httpx                                  |
 | Routing / geocoding | TomTom Routing (truck mode) and Search APIs                               |
 | Weather, time zones | Open-Meteo hourly forecast (free, no key)                                 |
-| Tests               | pytest (131 tests), Vitest (82 tests); both run in GitHub Actions CI      |
+| Tests               | pytest (142 tests), Vitest (92 tests); both run in GitHub Actions CI      |
 | Hosting             | Vercel (frontend), Render (API)                                           |
 
 ## Local development
@@ -193,17 +202,19 @@ npm run lint && npm run format:check && npm test && npm run build
 
 **Backend** (`backend/.env`)
 
-| Variable                | Required | Description                                                     |
-| ----------------------- | -------- | --------------------------------------------------------------- |
-| `TOMTOM_API_KEY`        | yes      | TomTom key (Routing, Search, Reverse Geocoding)                 |
-| `SECRET_KEY`            | prod     | Django secret key                                               |
-| `DEBUG`                 | –        | `True` locally, `False` in production (default `False`)         |
-| `ALLOWED_HOSTS`         | –        | Comma-separated; the Render hostname is added automatically     |
-| `CORS_ALLOWED_ORIGINS`  | prod     | Comma-separated frontend origins, e.g. the Vercel URL           |
-| `CACHE_URL`             | –        | Cache backend, e.g. Redis (default: in-memory per process)      |
-| `PLAN_THROTTLE_RATE`    | –        | Rate limit for plan and corridor requests (default `20/min`)    |
-| `GEOCODE_THROTTLE_RATE` | –        | Rate limit for search and time zone requests (default `90/min`) |
-| `LOG_LEVEL`             | –        | Default `INFO`                                                  |
+| Variable                | Required | Description                                                         |
+| ----------------------- | -------- | ------------------------------------------------------------------- |
+| `TOMTOM_API_KEY`        | yes      | TomTom key (Routing, Search, Reverse Geocoding)                     |
+| `SECRET_KEY`            | prod     | Django secret key                                                   |
+| `DEBUG`                 | –        | `True` locally, `False` in production (default `False`)             |
+| `ALLOWED_HOSTS`         | –        | Comma-separated; the Render hostname is added automatically         |
+| `CORS_ALLOWED_ORIGINS`  | prod     | Comma-separated frontend origins, e.g. the Vercel URL               |
+| `CACHE_URL`             | –        | Cache backend, e.g. Redis (default: in-memory per process)          |
+| `PLAN_THROTTLE_RATE`    | –        | Rate limit for plan and corridor requests (default `20/min`)        |
+| `GEOCODE_THROTTLE_RATE` | –        | Rate limit for search and time zone requests (default `90/min`)     |
+| `LOG_LEVEL`             | –        | Default `INFO`                                                      |
+| `OPEN_METEO_API_KEY`    | –        | Open-Meteo commercial key (higher limits than the free tier)        |
+| `OPEN_METEO_BASE_URL`   | –        | Set to `https://customer-api.open-meteo.com/v1/forecast` with a key |
 
 **Frontend** (`frontend/.env`)
 
@@ -222,6 +233,7 @@ input). Codes: `invalid` (400), `no_route` (422), `upstream_error` (502), `not_c
 | ------ | ---------------------------- | -------------------------------------------------------------- |
 | GET    | `/health`                    | Liveness, and whether routing is configured                    |
 | POST   | `/plan`                      | Routes, checkpoints, risk and the recommendation               |
+| POST   | `/departure-options`         | The same trip re-rated for departures over the next 48 hours   |
 | POST   | `/corridor-weather`          | Heatmap grid with 0–48 h of risk, wind, rain and snow          |
 | GET    | `/geocode?q=`                | Address autocomplete (US, Canada, Mexico)                      |
 | GET    | `/reverse-geocode?lat=&lon=` | Address of a point picked on the map                           |
@@ -335,14 +347,15 @@ Risk levels are numbers: 0 Low, 1 Moderate, 2 High, 3 Severe, 4 No Travel, `null
 
 ## Testing
 
-- **Backend (pytest, 131 tests):** every threshold edge, each load rule, ranking ties and
+- **Backend (pytest, 142 tests):** every threshold edge, each load rule, ranking ties and
   rounding, checkpoint placement and ETA interpolation, both API clients against recorded
   responses (`httpx.MockTransport`, no network), the plan and corridor services with fake
-  providers, and every endpoint including errors. One test checks that the TomTom key never
+  providers (including a storm that clears, for departure options), and every endpoint
+  including errors. One test checks that the TomTom key never
   appears in logs.
-- **Frontend (Vitest, 82 tests):** time-zone conversion (including DST), truck positioning,
+- **Frontend (Vitest, 92 tests):** time-zone conversion (including DST), truck positioning,
   heatmap weights and colour scales, a numerical check of the heatmap calibration, threshold
-  ranges, recommendation wording, URL encoding and form validation.
+  ranges, recommendation and departure wording, URL encoding and form validation.
 
 ## Deployment
 
@@ -366,5 +379,9 @@ Risk levels are numbers: 0 Low, 1 Moderate, 2 High, 3 Severe, 4 No Travel, `null
 - **One time zone per trip:** all times are shown in the start city's time zone, even when the
   route crosses into another one.
 - **North America only** for address search; routing and weather would work elsewhere.
+- **Departure options reuse the routes and drive times** of the chosen departure; only the
+  weather timing changes (traffic at other hours is not re-queried).
+- **Open-Meteo free tier:** 5,000 location lookups per hour per server. A long trip at 10-mile
+  spacing uses a few hundred; for heavy use set `OPEN_METEO_API_KEY`.
 - **In-memory cache** by default: each server process has its own. Set `CACHE_URL` to Redis to
   share it.

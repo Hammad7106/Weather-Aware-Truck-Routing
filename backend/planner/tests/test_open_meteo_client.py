@@ -5,7 +5,13 @@ import httpx
 import pytest
 from django.core.cache import cache
 
-from planner.clients.open_meteo import OpenMeteoClient, ceil_hour, floor_hour, snap
+from planner.clients.open_meteo import (
+    OpenMeteoClient,
+    ceil_hour,
+    floor_hour,
+    forecast_window,
+    snap,
+)
 from planner.domain.geo import LatLon
 from planner.errors import UpstreamError
 
@@ -54,8 +60,8 @@ def test_forecasts_requests_units_and_window_and_keeps_input_order():
     params = recorder.requests[0].url.params
     assert params["wind_speed_unit"] == "mph"
     assert params["precipitation_unit"] == "inch"
-    assert params["start_hour"] == "2026-11-05T14:00"
-    assert params["end_hour"] == "2026-11-05T19:00"
+    assert params["start_date"] == "2026-11-05"
+    assert params["end_date"] == "2026-11-10"  # a fixed 6-day window from the start day
     assert params["latitude"] == "39.75,41.00"
     weather = result[0].at(START)
     assert weather is not None and weather.wind_mph == 30 and weather.rain_in_hr == 0.2
@@ -141,3 +147,34 @@ def test_timezone_lookup_is_cached_per_grid_cell():
 def test_timezone_rejects_non_iana_answers():
     client = make_client(lambda r: httpx.Response(200, json={"timezone": "GMT"}))
     assert client.timezone(LatLon(0, -30)) is None
+
+
+def test_requests_with_different_times_share_one_window():
+    plan = forecast_window(START, START + timedelta(hours=9))
+    later = forecast_window(START + timedelta(hours=6), START + timedelta(hours=60))
+    corridor = forecast_window(START, START + timedelta(hours=48))
+
+    assert plan == later == corridor == (START.date(), 6)
+
+
+def test_window_grows_in_whole_spans_when_needed():
+    assert forecast_window(START, START + timedelta(days=8)) == (START.date(), 12)
+
+
+def test_cache_is_shared_between_different_request_windows():
+    recorder = Recorder()
+    client = make_client(recorder)
+    point = [LatLon(40, -100)]
+
+    client.forecasts(point, START, START + timedelta(hours=8))
+    client.forecasts(point, START + timedelta(hours=6), START + timedelta(hours=56))
+
+    assert len(recorder.requests) == 1
+
+
+def test_api_key_is_sent_when_configured():
+    recorder = Recorder()
+    http = httpx.Client(transport=httpx.MockTransport(recorder))
+    client = OpenMeteoClient(http, cache, base_url="https://weather.test/v1/forecast", api_key="k1")
+    client.forecasts([LatLon(40, -100)], START, START)
+    assert recorder.requests[0].url.params["apikey"] == "k1"

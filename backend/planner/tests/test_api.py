@@ -217,3 +217,21 @@ def test_timezone_endpoint(api, monkeypatch):
     assert "max-age=86400" in found["Cache-Control"]
     assert unknown.json() == {"timezone": None}
     assert api.get("/api/timezone", {"lat": 100, "lon": 0}).status_code == 400
+
+
+def test_departure_options_endpoint(api, fakes):
+    response = api.post("/api/departure-options", trip_body(), format="json")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["best_offset_hours"] in [o["offset_hours"] for o in data["options"]]
+    first = data["options"][0]
+    assert first["offset_hours"] == 0
+    assert set(first) == {"offset_hours", "departure_time", "arrival_time", "route_id", "summary"}
+    assert "miles_by_level" in first["summary"]
+
+
+def test_departure_options_validates_like_plan(api, fakes):
+    response = api.post("/api/departure-options", trip_body(load_weight_lb=-5), format="json")
+    assert response.status_code == 400
+    assert "load_weight_lb" in response.json()["errors"]

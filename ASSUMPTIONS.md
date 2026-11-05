@@ -57,7 +57,10 @@ a unit test that pins it down.
   usually written. Gusts are shown next to it in the UI but do not change the level.
 - **Lookups:** checkpoint coordinates are rounded to 0.05° (about 3.5 miles, close to the
   weather model's own grid spacing), de-duplicated, and fetched in **batched multi-location
-  requests**. Results are cached for 30 minutes.
+  requests**. Results are cached for 30 minutes. Every cell is fetched for the same window
+  (six whole UTC days from the departure day), because Open-Meteo's free tier counts each
+  location as one call: the plan, its departure options and its heatmap then share one lookup
+  per cell instead of three.
 - **Missing data:** if a checkpoint ETA is outside the forecast or the provider returns no value,
   the checkpoint is marked _"No forecast"_ and is not counted as Low. The route summary shows how
   many miles had no data.
@@ -119,11 +122,23 @@ Routes are sorted by this key, in order. The first difference decides:
 
 Miles are compared after rounding to 0.1 mile and average risk after rounding to 0.01, so
 floating-point noise cannot decide the ranking. The recommendation includes plain-English reasons
-that compare the winner with the runner-up at the deciding step (for example "4.0 fewer Severe
-miles than Route B").
+that walk through the ranking up to the deciding step, comparing the winner with the runner-up
+(for example "Tied on No Travel miles (0 mi)", then "Fewer Severe miles: 0 mi vs 12.5 mi on
+Route B").
 
 **When every route is unsafe:** if all routes have No Travel miles, the least-bad route is still
 ranked first, but the UI shows a clear warning that no route is safe at this departure time.
+
+### Best time to leave
+
+- The same routes are re-rated for departures **0, 2, 4, 6, 9, 12, 18, 24, 36 and 48 hours**
+  after the chosen time (dropping any beyond the 7-day forecast window).
+- Each option keeps the routes and drive times of the chosen departure; only the hour each
+  checkpoint is reached changes. This costs one routing call and one weather lookup in total.
+  Traffic at other hours is not re-queried.
+- For each departure the best route is chosen with the ranking above. Departures are then
+  compared on the same risk criteria (No Travel → Severe → High miles → average risk), and
+  ties go to the **earliest arrival**, so waiting is only suggested when it is actually safer.
 
 ## 8. Corridor heatmap
 
@@ -146,6 +161,9 @@ ranked first, but the UI shows a clear warning that no route is safe at this dep
 - **Truck position:** at each slider hour the map shows where the truck would be on each route,
   using the same ETA model as the checkpoints. The slider track shades the hours the selected
   route is on the road.
+- **Follow the truck:** "Drive" plays the selected route in about 16 seconds whatever its
+  length. The truck moves continuously, the heatmap shows the hour the truck is in, and the
+  checkpoint being passed is highlighted.
 
 ## 9. Scope and limitations
 
@@ -153,7 +171,8 @@ ranked first, but the UI shows a clear warning that no route is safe at this dep
   weather would work anywhere).
 - No user accounts or saved trips. A trip can be shared through its URL instead.
 - All times on a trip are shown in the start city's time zone, even where the route crosses into another zone (the zone is named next to the departure time).
-- Forecasts lose accuracy beyond ~3 days. The UI shows how far ahead each value is.
+- Forecasts lose accuracy beyond ~3 days. Departures are limited to 7 days ahead, but a trip
+  planned several days out should be re-checked closer to departure.
 - Freezing rain, fog, visibility and road closures are not in the brief's rules and are not
   classified.
 - Rest breaks are not modelled (see section 3).

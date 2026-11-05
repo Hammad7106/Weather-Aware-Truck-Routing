@@ -17,7 +17,7 @@ from .domain.risk import (
     RiskLevel,
 )
 from .services.corridor import CorridorWeather
-from .services.plan import Checkpoint, RoutePlan, TripPlan
+from .services.plan import Checkpoint, DepartureOptions, RoutePlan, TripPlan
 
 
 def iso(moment: datetime) -> str:
@@ -169,5 +169,21 @@ def risk_rules() -> dict[str, Any]:
                 "description": rule.description,
             }
             for rule in LOAD_RULES
+        ],
+    }
+
+
+def departure_options(result: DepartureOptions) -> dict[str, Any]:
+    return {
+        "best_offset_hours": result.best_offset_hours,
+        "options": [
+            {
+                "offset_hours": o.offset_hours,
+                "departure_time": iso(o.departure),
+                "arrival_time": iso(o.arrival),
+                "route_id": o.route_id,
+                "summary": summary(o.summary),
+            }
+            for o in result.options
         ],
     }

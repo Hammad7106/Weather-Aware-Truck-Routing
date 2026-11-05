@@ -81,6 +81,11 @@ def ranking_key(summary: RouteSummary) -> tuple[float, ...]:
     return tuple(criterion.value(summary) for criterion in CRITERIA)
 
 
+def risk_key(summary: RouteSummary) -> tuple[float, ...]:
+    """The ranking key without drive time: weather risk only, in the same priority order."""
+    return tuple(c.value(summary) for c in CRITERIA if c.key != "travel_time")
+
+
 def rank(summaries: Sequence[RouteSummary]) -> list[int]:
     """Indices of `summaries`, best first. Ties keep the provider's order (fastest first)."""
     return sorted(range(len(summaries)), key=lambda i: ranking_key(summaries[i]))

@@ -1,7 +1,11 @@
 """Open-Meteo hourly forecast client (https://open-meteo.com/en/docs).
 
-Points are snapped to a 0.05° grid and de-duplicated, cached per grid cell and time window, and
-fetched in batched multi-location requests that run in parallel.
+Points are snapped to a 0.05° grid and de-duplicated, cached per grid cell, and fetched in
+batched multi-location requests that run in parallel.
+
+Open-Meteo's free tier counts every location in a request as one call (5,000 per hour), so
+each cell is always fetched for the same whole-day window: a plan, its departure options and
+its heatmap then share cache entries instead of each downloading the same places again.
 """
 
 from __future__ import annotations
@@ -11,7 +15,7 @@ import math
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 
 import httpx
@@ -25,6 +29,9 @@ logger = logging.getLogger(__name__)
 
 SERVICE = "Open-Meteo"
 GRID_DEGREES = 0.05
+# Fetch whole UTC days in fixed spans so different requests reuse the same cache entries. Six
+# days covers a trip, 48 h of departure options and the 48 h heatmap from the departure day.
+WINDOW_DAYS = 6
 TIMEZONE_CACHE_SECONDS = 30 * 24 * 60 * 60
 HOUR = 3600
 HOURLY_VARIABLES = (
@@ -45,6 +52,18 @@ def snap(point: LatLon) -> LatLon:
         return round(round(value / GRID_DEGREES) * GRID_DEGREES, 2)
 
     return LatLon(to_grid(point.lat), to_grid(point.lon))
+
+
+def forecast_window(start: datetime, end: datetime) -> tuple[date, int]:
+    """First UTC day and number of days to fetch so that [start, end] is covered.
+
+    Always a multiple of WINDOW_DAYS from the start day, so most requests share one window.
+    """
+    first_day = start.astimezone(UTC).date()
+    days = WINDOW_DAYS
+    while datetime.combine(first_day + timedelta(days=days), time(), UTC) <= end:
+        days += WINDOW_DAYS
+    return first_day, days
 
 
 def floor_hour(moment: datetime) -> datetime:
@@ -93,6 +112,7 @@ class OpenMeteoClient:
         cache: BaseCache,
         *,
         base_url: str = "https://api.open-meteo.com/v1/forecast",
+        api_key: str = "",
         cache_seconds: int = 30 * 60,
         batch_size: int = 100,
         max_workers: int = 4,
@@ -100,6 +120,8 @@ class OpenMeteoClient:
         self._http = http
         self._cache = cache
         self._url = base_url
+        # A key switches to Open-Meteo's commercial API (higher limits) via `base_url`.
+        self._auth = {"apikey": api_key} if api_key else {}
         self._ttl = cache_seconds
         self._batch_size = batch_size
         self._max_workers = max_workers
@@ -108,7 +130,7 @@ class OpenMeteoClient:
         self, points: Sequence[LatLon], start: datetime, end: datetime
     ) -> list[HourlyForecast | None]:
         """Hourly forecasts covering [start, end] for each point, in the same order."""
-        window = (floor_hour(start), ceil_hour(end))
+        window = forecast_window(start, end)
         cells = [snap(p) for p in points]
         unique = list(dict.fromkeys(cells))
 
@@ -148,6 +170,7 @@ class OpenMeteoClient:
                     "longitude": f"{cell.lon:.2f}",
                     "timezone": "auto",
                     "forecast_days": 1,
+                    **self._auth,
                 },
             )
         except httpx.HTTPError as exc:
@@ -160,12 +183,11 @@ class OpenMeteoClient:
         return name or None
 
     @staticmethod
-    def _cache_key(cell: LatLon, window: tuple[datetime, datetime]) -> str:
-        return f"om:v1:{cell.lat:.2f},{cell.lon:.2f}:{window[0]:%Y%m%d%H}:{window[1]:%Y%m%d%H}"
+    def _cache_key(cell: LatLon, window: tuple[date, int]) -> str:
+        return f"om:v2:{cell.lat:.2f},{cell.lon:.2f}:{window[0]:%Y%m%d}:{window[1]}"
 
-    def _fetch(
-        self, cells: Sequence[LatLon], window: tuple[datetime, datetime]
-    ) -> list[HourlyForecast]:
+    def _fetch(self, cells: Sequence[LatLon], window: tuple[date, int]) -> list[HourlyForecast]:
+        first_day, days = window
         params = {
             "latitude": ",".join(f"{c.lat:.2f}" for c in cells),
             "longitude": ",".join(f"{c.lon:.2f}" for c in cells),
@@ -175,8 +197,9 @@ class OpenMeteoClient:
             "temperature_unit": "fahrenheit",
             "timeformat": "unixtime",
             "timezone": "GMT",
-            "start_hour": f"{window[0]:%Y-%m-%dT%H:%M}",
-            "end_hour": f"{window[1]:%Y-%m-%dT%H:%M}",
+            "start_date": first_day.isoformat(),
+            "end_date": (first_day + timedelta(days=days - 1)).isoformat(),
+            **self._auth,
         }
         try:
             response = self._http.get(self._url, params=params)

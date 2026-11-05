@@ -18,6 +18,7 @@ from . import presenters, providers
 from .clients.tomtom import Place
 from .domain.geo import LatLon
 from .serializers import (
+    MAX_DEPARTURE_AHEAD,
     CorridorSerializer,
     GeocodeQuerySerializer,
     PointQuerySerializer,
@@ -50,6 +51,16 @@ def _place(data: dict) -> Place:
     return Place(label=data["label"] or f"{point.lat:.4f}, {point.lon:.4f}", point=point)
 
 
+def _trip(data: dict) -> TripRequest:
+    return TripRequest(
+        origin=_place(data["origin"]),
+        destination=_place(data["destination"]),
+        departure=data["departure_time"],
+        load_lb=data["load_weight_lb"],
+        interval_miles=int(data["checkpoint_interval_miles"]),
+    )
+
+
 class PlanView(APIView):
     """Three truck routes with weather-rated checkpoints and a recommendation."""
 
@@ -58,14 +69,7 @@ class PlanView(APIView):
     def post(self, request: Request) -> Response:
         serializer = TripSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        data = serializer.validated_data
-        trip = TripRequest(
-            origin=_place(data["origin"]),
-            destination=_place(data["destination"]),
-            departure=data["departure_time"],
-            load_lb=data["load_weight_lb"],
-            interval_miles=int(data["checkpoint_interval_miles"]),
-        )
+        trip = _trip(serializer.validated_data)
 
         started = time.perf_counter()
         plan = PlanService(providers.routing_client(), providers.weather_client()).plan(trip)
@@ -76,6 +80,22 @@ class PlanView(APIView):
             (time.perf_counter() - started) * 1000,
         )
         return Response(presenters.trip_plan(plan, timezone.now()))
+
+
+class DepartureOptionsView(APIView):
+    """The safest time to leave: the trip re-rated for departures over the next 48 hours."""
+
+    throttle_scope = "plan"
+
+    def post(self, request: Request) -> Response:
+        serializer = TripSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        trip = _trip(serializer.validated_data)
+
+        result = PlanService(
+            providers.routing_client(), providers.weather_client()
+        ).departure_options(trip, latest_departure=timezone.now() + MAX_DEPARTURE_AHEAD)
+        return Response(presenters.departure_options(result))
 
 
 class CorridorWeatherView(APIView):

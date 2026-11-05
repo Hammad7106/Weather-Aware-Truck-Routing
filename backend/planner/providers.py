@@ -15,4 +15,9 @@ def routing_client() -> TomTomClient:
 
 
 def weather_client() -> OpenMeteoClient:
-    return OpenMeteoClient(shared_http_client(), cache, base_url=settings.OPEN_METEO_BASE_URL)
+    return OpenMeteoClient(
+        shared_http_client(),
+        cache,
+        base_url=settings.OPEN_METEO_BASE_URL,
+        api_key=settings.OPEN_METEO_API_KEY,
+    )
